@@ -27,7 +27,7 @@ def test_with_authenticate():
                                       username="monary_test_user",
                                       password="monary_test_pass")
     [ col ] = monary_connection.query("monary_auth_test", "junk", {}, ["route"], ["int32"])
-    print col
+    print (col)
     assert col[0] == 66, "test value could not be retrieved"
 
 def test_with_authenticate_from_uri():

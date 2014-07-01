@@ -4,6 +4,11 @@
 import pymongo
 import monary
 
+try:
+    xrange
+except NameError:
+    xrange = range
+
 NUM_TEST_RECORDS = 5000
 
 def get_pymongo_connection():
@@ -24,12 +29,12 @@ def setup():
                 r['x'] = 3
             records.append(r)
         coll.insert(records, safe=True)
-        print "setup complete"
+        print ("setup complete")
 
 def teardown():
     c = get_pymongo_connection()
     c.drop_database("monary_test")
-    print "teardown complete"
+    print ("teardown complete")
 
 def get_monary_column(colname, coltype):
     with get_monary_connection() as m:

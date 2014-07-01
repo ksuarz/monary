@@ -3,8 +3,19 @@
 
 import os.path
 import platform
-from urllib import urlencode
+import sys
 from ctypes import *
+
+if sys.version_info[0] >= 3:
+    # Python 3
+    bytes_type = bytes
+    string_type = str
+    from urllib.parse import urlencode
+else:
+    # Python 2.6/2.7
+    bytes_type = basestring,
+    string_type = basestring,
+    from urllib import urlencode
 
 try:
     # if we are using Python 2.7+
@@ -148,7 +159,7 @@ def make_bson(obj):
     """
     if obj is None:
         obj = { }
-    if not isinstance(obj, basestring):
+    if not isinstance(obj, bytes_type):
         obj = bson.BSON.encode(obj)
     return obj
 
@@ -162,7 +173,7 @@ def get_ordering_dict(obj):
     """
     if obj is None:
         return OrderedDict()
-    elif isinstance(obj, basestring):
+    elif isinstance(obj, string_type):
         return OrderedDict([(obj, 1)])
     elif isinstance(obj, list):
         return OrderedDict(obj)
@@ -275,7 +286,7 @@ class Monary(object):
             uri = "".join(uri)
 
         # Attempt the connection
-        self._connection = cmonary.monary_connect(uri)
+        self._connection = cmonary.monary_connect(uri.encode('ascii'))
         return (self._connection is not None)
 
     def _make_column_data(self, fields, types, count):
@@ -311,7 +322,7 @@ class Monary(object):
 
             data_p = data.ctypes.data_as(c_void_p)
             mask_p = mask.ctypes.data_as(c_void_p)
-            cmonary.monary_set_column_item(coldata, i, field,
+            cmonary.monary_set_column_item(coldata, i, field.encode('ascii'),
                                            cmonary_type, cmonary_type_arg,
                                            data_p, mask_p)
 
@@ -335,8 +346,8 @@ class Monary(object):
             raise ValueError("failed to get collection %s.%s - not connected" % (db, collection))
 
         self._collection = cmonary.monary_use_collection(self._connection,
-                                                         db,
-                                                         collection)
+                                                         db.encode('ascii'),
+                                                         collection.encode('ascii'))
         success = (self._collection is not None)
         self._collection_ns = db + '.' + collection if success else ''
         return success

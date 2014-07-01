@@ -3,13 +3,18 @@
 
 import random
 import datetime
-import nose
 
+import nose
 import bson
 import pymongo
 
 import monary
 from monary.monary import OrderedDict
+
+try:
+    xrange
+except NameError:
+    xrange = range
 
 NUM_TEST_RECORDS = 100
 
@@ -47,19 +52,19 @@ def setup():
                     stringval="".join(chr(ord('A') + random.randint(0,25))
                                         for i in xrange(random.randint(1,5))),
                     binaryval=bson.binary.Binary("".join(chr(random.randint(0,255))
-                                                 for i in xrange(5))),
+                                                 for i in xrange(5)).encode('utf-8')),
                     intlistval=[ random.randint(0, 100) for i in xrange(random.randint(1,5)) ],
                     subdocumentval=dict(subkey=random.randint(0, 255))
                 )
         records.append(record)
     coll.insert(records, safe=True)
     RECORDS = records
-    print "setup complete"
+    print ("setup complete")
 
 def teardown():
     c = get_pymongo_connection()
     c.drop_database("monary_test")
-    print "teardown complete"
+    print ("teardown complete")
 
 def get_record_values(colname):
     return [ r[colname] for r in RECORDS ]
@@ -97,7 +102,7 @@ def test_float_columns():
 
 def test_id_column():
     column = get_monary_column("_id", "id")
-    data = [ bson.ObjectId(str(c)) for c in column ]
+    data = [ bson.ObjectId(str(c).encode('ascii')) for c in column ]
     expected = get_record_values("_id")
     assert data == expected
 
