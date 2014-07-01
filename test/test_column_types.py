@@ -3,13 +3,14 @@
 
 import random
 import datetime
+import sys
 
 import nose
 import bson
 import pymongo
 
 import monary
-from monary.monary import OrderedDict
+from monary.monary import OrderedDict, mvoid_to_bson_id
 
 try:
     xrange
@@ -37,6 +38,12 @@ def setup():
     random.seed(1234) # for reproducibility
 
     for i in xrange(NUM_TEST_RECORDS):
+        if sys.version_info[0] >= 3:
+            # Python 3
+            binary = "".join(chr(random.randint(0,255)) for i in xrange(5)).encode('utf-8')
+        else:
+            # Python 2.6 / 2.7
+            binary = "".join(chr(random.randint(0,255)) for i in xrange(5))
         record = dict(
                     sequence=i,
                     intval=random.randint(-128, 127),
@@ -51,8 +58,7 @@ def setup():
                                                           inc=random.randint(0,1000000)),
                     stringval="".join(chr(ord('A') + random.randint(0,25))
                                         for i in xrange(random.randint(1,5))),
-                    binaryval=bson.binary.Binary("".join(chr(random.randint(0,255))
-                                                 for i in xrange(5)).encode('utf-8')),
+                    binaryval=bson.binary.Binary(binary),
                     intlistval=[ random.randint(0, 100) for i in xrange(random.randint(1,5)) ],
                     subdocumentval=dict(subkey=random.randint(0, 255))
                 )
@@ -102,7 +108,7 @@ def test_float_columns():
 
 def test_id_column():
     column = get_monary_column("_id", "id")
-    data = [ bson.ObjectId(str(c).encode('ascii')) for c in column ]
+    data = list(map(mvoid_to_bson_id, column))
     expected = get_record_values("_id")
     assert data == expected
 
@@ -118,12 +124,18 @@ def test_date_column():
 
 def test_string_column():
     data = get_monary_column("stringval", "string:6")
-    expected = get_record_values("stringval")
+    expected = [s.encode('ascii') for s in get_record_values("stringval")]
     assert data == expected
 
 def test_binary_column():
-    data = [ str(x) for x in get_monary_column("binaryval", "binary:5") ]
-    expected = [ str(b) for b in get_record_values("binaryval") ]
+    if sys.version_info[0] >= 3:
+        # Python 3
+        data = [ bytes(x) for x in get_monary_column("binaryval", "binary:5") ]
+        expected = [ bytes(b)[:5] for b in get_record_values("binaryval") ]
+    else:
+        # Python 2.6 / 2.7
+        data = [ str(x) for x in get_monary_column("binaryval", "binary:5") ]
+        expected = [ str(b) for b in get_record_values("binaryval") ]
     assert data == expected
 
 def list_to_bsonable_dict(values):
@@ -132,9 +144,16 @@ def list_to_bsonable_dict(values):
 def test_bson_column():
     size = get_monary_column("subdocumentval", "size")[0]
     rawdata = get_monary_column("subdocumentval", "bson:%d" % size)
-    data = [ "".join(c for c in x.data.data) for x in rawdata ]
-    expected = [ "".join(c for c in bson.BSON.encode(record))
-            for record in get_record_values("subdocumentval") ]
+    if sys.version_info[0] >= 3:
+        # Python 3
+        data = [ bytes(x.data.data) for x in rawdata ]
+        expected = [ bytes(bson.BSON.encode(record))
+                     for record in get_record_values("subdocumentval") ]
+    else:
+        # Python 2.6 / 2.7
+        data = [ "".join(c for c in x.data.data) for x in rawdata ]
+        expected = [ "".join(c for c in bson.BSON.encode(record))
+                     for record in get_record_values("subdocumentval") ]
     assert data == expected
 
 def test_type_column():

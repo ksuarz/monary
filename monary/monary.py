@@ -163,6 +163,25 @@ def make_bson(obj):
         obj = bson.BSON.encode(obj)
     return obj
 
+def mvoid_to_bson_id(mvoid):
+    """Converts a numpy mvoid value to a BSON ObjectId.
+
+       :param mvoid: numpy.ma.core.mvoid returned from Monary when querying "_id"
+       :returns: the _id as a bson ObjectId
+       :rtype: bson.objectid.ObjectId
+    """
+    if sys.version_info[0] >= 3:
+        # Python 3
+        string = str(mvoid)
+        string_list = ''.join(filter(lambda x: x not in '[]', string)).split()
+        ints = map(int, string_list)
+        uints = [x & 0xff for x in ints]
+        id_bytes = bytes(uints)
+        return bson.ObjectId(id_bytes)
+    else:
+        # Python 2.6 / 2.7
+        return bson.ObjectId(str(mvoid))
+
 def get_ordering_dict(obj):
     """Converts a field/direction specification to an OrderedDict, suitable
        for BSON encoding.
