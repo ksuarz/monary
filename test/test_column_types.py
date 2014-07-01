@@ -29,7 +29,7 @@ def setup():
     coll = db.test_data
     records = [ ]
 
-    random.seed(1234) # for reproducability
+    random.seed(1234) # for reproducibility
 
     for i in xrange(NUM_TEST_RECORDS):
         record = dict(
