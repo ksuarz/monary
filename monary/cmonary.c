@@ -788,12 +788,11 @@ int monary_load_query(monary_cursor* cursor)
         ++row;
     }
 
-    total_values = coldata->num_columns * row;
     if (mongoc_cursor_error(mcursor, &error)) {
         DEBUG("error: %d.%d %s", error.domain, error.code, error.message);
     }
 
-    int total_values = row * coldata->num_columns;
+    total_values = row * coldata->num_columns;
     DEBUG("%i rows loaded; %i / %i values were masked", row, num_masked, total_values);
 
     return row;
