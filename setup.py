@@ -25,12 +25,14 @@ else:
     compiler_kw = {}
     linker_kw = {'libraries' : ['ssl', 'crypto', 'pthread', 'sasl2']}
     so_target = 'libcmonary.so' 
+    if 'Ubuntu' in platform.dist():
+        linker_kw['libraries'].append('rt')
 
 compiler = new_compiler(**compiler_kw)
 
 MONARY_DIR = "monary"
-CMONGO_SRC = "mongodb-mongo-c-driver-0.96.2"
-CFLAGS = ["--std=c99", "-fPIC", "-O2"]
+CMONGO_SRC = "mongodb-mongo-c-driver-0.96.4"
+CFLAGS = ["-fPIC", "-O2"]
 
 if not DEBUG:
     CFLAGS.append("-DNDEBUG")
@@ -50,10 +52,9 @@ class BuildCMongoDriver(Command):
         pass
     def run(self):
         try:
-            # chdir(2) should not fail except under exceptional circumstances (directory deleted, etc.)
             os.chdir(CMONGO_SRC)
+            subprocess.call(["autoreconf"])
             status = subprocess.call(["./configure", "--enable-static", "--without-documentation"])
-            # TODO: What kind of exception do you want? Could just use regular old exception
             if status != 0:
                 raise BuildException("configure script failed with exit status {0}.".format(status))
 
