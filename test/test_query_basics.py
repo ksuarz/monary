@@ -40,7 +40,7 @@ def teardown():
 def get_monary_column(colname, coltype):
     with get_monary_connection() as m:
         return m.query("monary_test", "test_data", {}, [colname],
-                       [coltype], sort="sequence")[0]
+                       [coltype], sort="_id")[0]
 
 
 def test_count():
@@ -58,3 +58,8 @@ def test_sum():
     vals = get_monary_column("_id", "int32")
     target_sum = NUM_TEST_RECORDS * (NUM_TEST_RECORDS - 1) / 2
     assert vals.sum() == target_sum
+
+
+def test_sort():
+    vals = get_monary_column("_id", "int32")
+    assert (vals == list(xrange(NUM_TEST_RECORDS))).all()

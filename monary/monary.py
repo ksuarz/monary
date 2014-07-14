@@ -258,7 +258,7 @@ class Monary(object):
         if self._connection is not None:
             self.close()
 
-        if host.startswith('mongodb://'):
+        if host.startswith("mongodb://"):
             uri = host
         else:
             # Build up the URI string.
