@@ -59,6 +59,7 @@ FUNCDEFS = [
 ]
 
 MAX_COLUMNS = 1024
+MAX_STRING_LENGTH = 1024
 
 def _decorate_cmonary_functions():
     """Decorates each of the cmonary functions with their argument and result types."""
@@ -224,14 +225,15 @@ class Monary(object):
            credentials exist, this defaults to the "admin" database. See
            mongoc_uri(7).
            :param options: Connection-specific options as a dict.
+
+           TODO write good docs for advanced connections
+           TODO deprecate options in favor of **kwargs
         """
 
         self._cmonary = cmonary
         self._connection = None
-        self._collection_ns = ''
-        self._collection = None
         if not self.connect(host, port, username, password, database, options):
-            raise Warning("Connection failed.")
+            raise ValueError("Misformatted Mongo URI.")
 
     def connect(self, host="localhost", port=27017, username=None,
                 password=None, database=None, options={}):
@@ -249,12 +251,14 @@ class Monary(object):
 
            :returns: True if successful; false otherwise.
            :rtype: bool
+
+           TODO deprecate options in favor of **kwargs
         """
 
         if self._connection is not None:
             self.close()
 
-        if "mongodb://" in host:
+        if host.startswith('mongodb://'):
             uri = host
         else:
             # Build up the URI string.
@@ -302,6 +306,9 @@ class Monary(object):
         coldata = cmonary.monary_alloc_column_data(numcols, count)
         colarrays = [ ]
         for i, (field, typename) in enumerate(zip(fields, types)):
+            if len(field) > MAX_STRING_LENGTH:
+                raise ValueError("length of field name %s exceeds "
+                                 "maximum of %d" % (field, MAX_COLUMNS))
 
             cmonary_type, cmonary_type_arg, numpy_type = get_monary_numpy_type(typename)
 
@@ -324,23 +331,15 @@ class Monary(object):
             :param db: name of database
             :param collection: name of collection
 
-            :returns: True if successful; false otherwise
-            :rtype: bool
+            :returns: the collection
+            :rtype: cmonary mongoc_collection_t*
         """
         if self._connection is not None:
-            if self._collection_ns != db + '.' + collection:
-                cmonary.monary_destroy_collection(self._collection)
-            else:
-                return True
+            return cmonary.monary_use_collection(self._connection,
+                                                 db,
+                                                 collection)
         else:
             raise ValueError("failed to get collection %s.%s - not connected" % (db, collection))
-
-        self._collection = cmonary.monary_use_collection(self._connection,
-                                                         db,
-                                                         collection)
-        success = (self._collection is not None)
-        self._collection_ns = db + '.' + collection if success else ''
-        return success
 
     def count(self, db, coll, query=None):
         """Count the number of records that will be returned by the given query.
@@ -352,12 +351,15 @@ class Monary(object):
            :returns: the number of records
            :rtype: int
         """
-        if not self._get_collection(db, coll):
+        collection = self._get_collection(db, coll)
+        if collection is None:
             raise ValueError("couldn't connect to collection %s.%s" % (db, coll))
         query = make_bson(query)
-        count = cmonary.monary_query_count(self._collection, query)
+        count = cmonary.monary_query_count(collection, query)
+        cmonary.monary_destroy_collection(collection)
         if count < 0:
-            raise RuntimeError("MongoDB C driver db.collection.count returned a negative value :(")
+            # TODO pass good error messages from C to Python
+            raise RuntimeError("Internal error in count()")
         return count
 
     def query(self, db, coll, query, fields, types,
@@ -401,14 +403,17 @@ class Monary(object):
             coldata, colarrays = self._make_column_data(fields, types, count)
             cursor = None
             try:
-                if not self._get_collection(db, coll):
+                collection = self._get_collection(db, coll)
+                if collection is None:
                     raise ValueError("unable to get the collection")
-                cursor = cmonary.monary_init_query(self._collection, offset, limit,
+                cursor = cmonary.monary_init_query(collection, offset, limit,
                                                    full_query, coldata, select_fields)
                 cmonary.monary_load_query(cursor)
             finally:
                 if cursor is not None:
                     cmonary.monary_close_query(cursor)
+                if collection is not None:
+                    cmonary.monary_destroy_collection(collection)
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
@@ -467,9 +472,10 @@ class Monary(object):
             coldata, colarrays = self._make_column_data(fields, types, block_size)
             cursor = None
             try:
-                if not self._get_collection(db, coll):
+                collection = self._get_collection(db, coll)
+                if collection is None:
                     raise ValueError("unable to get the collection")
-                cursor = cmonary.monary_init_query(self._collection, offset, limit,
+                cursor = cmonary.monary_init_query(collection, offset, limit,
                                                    full_query, coldata, select_fields)
                 while True:
                     num_rows = cmonary.monary_load_query(cursor)
@@ -483,16 +489,13 @@ class Monary(object):
             finally:
                 if cursor is not None:
                     cmonary.monary_close_query(cursor)
+                if collection is not None:
+                    cmonary.monary_destroy_collection(collection)
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
     def close(self):
-        """Destroy the current collection, if any."""
-        self._collection_ns = ""
-        if self._collection is not None:
-            cmonary.monary_destroy_collection(self._collection)
-            self._collection = None
         """Closes the current connection, if any."""
         if self._connection is not None:
             cmonary.monary_disconnect(self._connection)
