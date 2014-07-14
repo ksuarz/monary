@@ -768,7 +768,7 @@ monary_cursor* monary_init_query(mongoc_collection_t* collection,
             DEBUG("%s", "An error occurred while allocating memory for BSON data");
             return NULL;
         }
-        monary_get_bson_fields_list(coldata, &fields_bson);
+        monary_get_bson_fields_list(coldata, fields_bson);
     }
 
     // create query cursor

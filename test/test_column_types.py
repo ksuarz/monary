@@ -3,6 +3,7 @@
 
 import random
 import datetime
+import struct
 
 import bson
 import nose
@@ -112,9 +113,10 @@ def test_date_column():
     assert [monary.mongodate_to_datetime(x) for x in column] == expected
 
 def test_timestamp_column():
-    data = get_monary_column("timestampval", "timestamp")
+    raw_data = get_monary_column("timestampval", "timestamp")
+    data = [ struct.unpack("<ii", ts) for ts in raw_data ]
     timestamps = get_record_values("timestampval")
-    expected = [ ((ts.time << 32) + ts.inc) for ts in timestamps ]
+    expected = [ (ts.time, ts.inc) for ts in timestamps ]
     assert data == expected
 
 def test_string_column():
