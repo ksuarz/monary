@@ -1,0 +1,119 @@
+Type Reference
+==============
+The following data types are supported:
+
+* signed and unsigned integers (8-bit, 16-bit, 32-bit, and 64-bit) 
+* IEEE single-precision floating point (32-bit) 
+* IEEE double-precision floating point (64-bit)
+* boolean
+* `ObjectID <http://dochub.mongodb.org/core/objectids>`_
+* UTC datetime 
+* timestamp 
+* UTF-8 string
+* BSON document 
+* type 
+* size 
+* length 
+
+All types are implemented in C; thus, type casting follows the rules of the C
+standard.
+
+.. seealso::
+
+    The official `BSON Specification <http://bsonspec.org>`_ for more
+    information about how BSON is stored in binary format.
+
+BSON Types
+----------
+Integers
+........
+The `BSON specification`_ only stores signed 32- and 64-bit integers. Specifying
+an unsigned integer or an integer size of 8- or 16-bits causes a cast. Casting a
+negative number to an unsigned integer or casting to a smaller integer size with
+overflow is implementation-defined, depending on the C compiler for your
+platform.
+
+Floating-point numbers can be cast to integers. In the case of overflow, the
+result is undefined.
+
+Note that signed integers are kept in two's complement format.
+
+Floating-Point
+..............
+BSON only stores doubles; that is, 64-bit IEEE 754 floating point
+numbers. Specifying float32 will cause a cast with possible loss of precision.
+
+Integers can be cast to floating-point. If the original value is outside of the
+range of the destination type, the result is undefined.
+
+Datetimes
+.........
+This datetime is a 64-bit integer representing milliseconds since the epoch,
+which is January 1, 1970. Dates before the epoch are expressed as negative
+milliseconds. Monary provides helper functions for converting MongoDB dates into
+Python datetime objects.
+
+Timestamps
+..........
+A BSON timestamp is a special type used internally by MongoDB. It is a 64-bit
+integer, where the first four bytes represent an increment and the second four
+represent a timestamp. For storing arbitrary times, use datetime instead.
+
+.. seealso::
+
+    :doc:`examples/timestamp` for an example of using timestamps.
+
+Strings
+.......
+All strings in MongoDB are encoded in UTF-8. When performing a find query on
+strings, you must also input the lengths of the strings in bytes. For a regular
+ASCII string, the length is the number of characters plus one for the
+terminating ``NUL`` character. Characters with higher-order UTF-8 encodings may
+occupy more space. You can use Monary to query for the strings' actual size in
+bytes to determine what size to use.
+
+Find queries return lists of ``numpy.string_`` objects.
+
+Subdocuments
+............
+Documents are retrieved as BSON. Each value is a NumPy void pointer to the
+binary data.
+
+Monary-Specific Types
+---------------------
+Type
+....
+"Type" refers to a field's BSON type code. For integers, the type code returned
+will be either an int32 (type code 16) or int64 (type code 18), depending on how
+it is stored in MongoDB.
+
+Here is a list of selected type codes, as per the specification:
+
+- 1 : double
+- 2 : string
+- 3 : (sub)document
+- 4 : array
+- 5 : binary
+- 7 : ObjectID
+- 8 : boolean
+- 9 : UTC datetime
+- 16 : 32-bit integer
+- 17 : timestamp
+- 18 : 64-bit integer
+
+.. seealso::
+
+    Why do my integers have the type code for doubles in MongoDB?
+
+Size
+....
+For UTF-8 strings, JavaScript code, binary values, BSON subdocuments and arrays,
+"size" is defined as the size of the object in bytes. All other types do not
+have a defined Monary size.
+
+Length
+......
+For UTF-8 strings and Javascript code, "length" refers to the string length (not
+including the terminating NUL character); for arrays, the number of elements;
+and for subdocuments, the number of key-value pairs. No other types have a
+defined Monary length.
