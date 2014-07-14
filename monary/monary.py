@@ -225,9 +225,6 @@ class Monary(object):
            credentials exist, this defaults to the "admin" database. See
            mongoc_uri(7).
            :param options: Connection-specific options as a dict.
-
-           TODO write good docs for advanced connections
-           TODO deprecate options in favor of **kwargs
         """
 
         self._cmonary = cmonary
@@ -251,8 +248,6 @@ class Monary(object):
 
            :returns: True if successful; false otherwise.
            :rtype: bool
-
-           TODO deprecate options in favor of **kwargs
         """
 
         if self._connection is not None:
@@ -351,14 +346,16 @@ class Monary(object):
            :returns: the number of records
            :rtype: int
         """
-        collection = self._get_collection(db, coll)
-        if collection is None:
-            raise ValueError("couldn't connect to collection %s.%s" % (db, coll))
-        query = make_bson(query)
-        count = cmonary.monary_query_count(collection, query)
-        cmonary.monary_destroy_collection(collection)
+        try:
+            collection = self._get_collection(db, coll)
+            if collection is None:
+                raise ValueError("couldn't connect to collection %s.%s" % (db, coll))
+            query = make_bson(query)
+            count = cmonary.monary_query_count(collection, query)
+        finally:
+            if collection is not None:
+                cmonary.monary_destroy_collection(collection)
         if count < 0:
-            # TODO pass good error messages from C to Python
             raise RuntimeError("Internal error in count()")
         return count
 
