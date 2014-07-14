@@ -1,8 +1,26 @@
+Version 0.3.0
+-------------
+
+    * Upgraded to latest version of Mongo C driver (0.96.4).
+
+    * monary_connect() now takes a MongoDB URI or a hostname and
+      port. (See http://docs.mongodb.org/manual/reference/connection-string/
+      for more information.)
+
+    * cmonary.c can now upcast or downcast to and from any integer or
+      floating-point type retrieved from MongoDB.
+      More detail
+
+    * Turned off debug messages by default.
+
+    * datehelper.py now allows negative timedeltas and times before the epoch
 
 Version 0.2.3
 -------------
 
     * Corrected issue with query sorts.
+
+    * Updated setup.py for packaging on PyPI.
 
 Version 0.1.4
 -------------

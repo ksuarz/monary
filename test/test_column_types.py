@@ -1,11 +1,11 @@
-# Monary - Copyright 2011-2013 David J. C. Beach
+# Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
 import random
 import datetime
-import nose
 
 import bson
+import nose
 import pymongo
 
 import monary
@@ -141,31 +141,31 @@ def test_bson_column():
 def test_type_column():
     # See: http://bsonspec.org/#/specification for type codes
     data = get_monary_column("floatval", "type")
-    expected = [ 1 ] * len(data)
+    expected = [1] * len(data)
     assert data == expected
 
     data = get_monary_column("stringval", "type")
-    expected = [ 2 ] * len(data)
+    expected = [2] * len(data)
     assert data == expected
 
     data = get_monary_column("intlistval", "type")
-    expected = [ 4 ] * len(data)
+    expected = [4] * len(data)
     assert data == expected
 
     data = get_monary_column("binaryval", "type")
-    expected = [ 5 ] * len(data)
+    expected = [5] * len(data)
     assert data == expected
 
     data = get_monary_column("boolval", "type")
-    expected = [ 8 ] * len(data)
+    expected = [8] * len(data)
     assert data == expected
 
     data = get_monary_column("dateval", "type")
-    expected = [ 9 ] * len(data)
+    expected = [9] * len(data)
     assert data == expected
 
     data = get_monary_column("intval", "type")
-    expected = [ 16 ] * len(data)
+    expected = [16] * len(data)
     assert data == expected
 
 def test_string_length_column():
@@ -181,7 +181,7 @@ def test_list_length_column():
 def test_bson_length_column():
     data = get_monary_column("subdocumentval", "length")
     # We have only one key in the subdocument
-    expected = [ 1 ] * len(data)
+    expected = [1] * len(data)
     assert data == expected
 
 def test_string_size_column():
