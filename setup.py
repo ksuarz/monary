@@ -1,6 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
+import sys
 import os
 import platform
 import subprocess
@@ -8,7 +9,7 @@ from distutils.core import setup, Command
 from distutils.command.build import build
 from distutils.ccompiler import new_compiler
 
-DEBUG = True
+DEBUG = False
 
 VERSION = "0.3.0"
 
@@ -53,7 +54,13 @@ class BuildCMongoDriver(Command):
     def run(self):
         try:
             os.chdir(CMONGO_SRC)
-            subprocess.call(["autoreconf"])
+            try:
+                subprocess.call(["autoreconf"])
+            except OSError:
+                sys.stderr.write("Warning: Failed to call autoreconf(1). Either"
+                                 " install autotools or ensure that autoreconf "
+                                 "is in PATH.")
+
             status = subprocess.call(["./configure", "--enable-static", "--without-documentation"])
             if status != 0:
                 raise BuildException("configure script failed with exit status {0}.".format(status))
@@ -77,7 +84,8 @@ class BuildCMonary(Command):
     def run(self):
         compiler.compile([os.path.join(MONARY_DIR, "cmonary.c")],
                          extra_preargs=CFLAGS,
-                         include_dirs=[os.path.join(CMONGO_SRC, "src", "mongoc"), os.path.join(CMONGO_SRC, "src", "libbson", "src", "bson")])
+                         include_dirs=[os.path.join(CMONGO_SRC, "src", "mongoc"),
+                                       os.path.join(CMONGO_SRC, "src", "libbson", "src", "bson")])
         compiler.link_shared_lib([os.path.join(MONARY_DIR, "cmonary.o"),
                                   os.path.join(CMONGO_SRC, ".libs", "libmongoc-1.0.a"),
                                   os.path.join(CMONGO_SRC, "src", "libbson", ".libs", "libbson-1.0.a")],
