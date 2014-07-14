@@ -745,6 +745,7 @@ monary_cursor* monary_init_query(mongoc_collection_t* collection,
 
     // Sanity checks
     if (!collection || !query || !coldata) {
+        DEBUG("%s", "Given a NULL param.");
         return NULL;
     }
 
