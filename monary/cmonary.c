@@ -824,7 +824,7 @@ int monary_load_query(monary_cursor* cursor)
     // read result values
     while(row < coldata->num_rows
             && !mongoc_cursor_error(mcursor, &error)
-            && mongoc_cursor_more(mcursor)) {
+            && mongoc_cursor_next(mcursor, &bson)) {
 
 #ifndef NDEBUG
         if(row % 500000 == 0) {
@@ -832,9 +832,7 @@ int monary_load_query(monary_cursor* cursor)
         }
 #endif
 
-        if (mongoc_cursor_next(mcursor, &bson)) {
-            num_masked += monary_bson_to_arrays(coldata, row, bson);
-        }
+        num_masked += monary_bson_to_arrays(coldata, row, bson);
         ++row;
     }
 
