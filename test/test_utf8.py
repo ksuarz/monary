@@ -6,6 +6,7 @@ import pymongo
 
 import monary
 
+
 def setup():
     with pymongo.Connection("127.0.0.1") as c:
         c.drop_database("monary_test")
@@ -13,9 +14,11 @@ def setup():
         c.monary_test.data.insert({"test": u"âéÇ", "sequence": 2})
         c.monary_test.data.insert({"test": u"αλΩ", "sequence": 3})
 
+
 def teardown():
     with pymongo.Connection("127.0.0.1") as c:
         c.drop_database("monary_test")
+
 
 def test_utf8():
     with monary.Monary("127.0.0.1") as m:
