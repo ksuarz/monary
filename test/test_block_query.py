@@ -11,26 +11,27 @@ except NameError:
     xrange = range
 
 NUM_TEST_RECORDS = 5000
+BLOCK_SIZE = 32 * 50
+records = []
 
 
 def get_pymongo_connection():
-    return pymongo.MongoClient("127.0.0.1")
+    return pymongo.MongoClient("127.0.0.1", 27017)
 
 
 def get_monary_connection():
-    return monary.Monary("127.0.0.1")
+    return monary.Monary("127.0.0.1", 27017)
 
 
 def setup():
+    global records
     with get_pymongo_connection() as c:
         c.drop_database("monary_test")  # ensure that database does not exist
-        db = c.monary_test
-        coll = db.test_data
-        records = []
+        coll = c.monary_test.test_data
         for i in xrange(NUM_TEST_RECORDS):
             r = {"_id": i}
             if (i % 2) == 0:
-                r['x'] = 3
+                r["x"] = 3
             records.append(r)
         coll.insert(records, safe=True)
 
@@ -40,29 +41,32 @@ def teardown():
     c.drop_database("monary_test")
 
 
-def get_monary_column(colname, coltype):
+def get_monary_blocks(colname, coltype):
     with get_monary_connection() as m:
-        return m.query("monary_test", "test_data", {}, [colname],
-                       [coltype], sort="_id")[0]
+        for block, in m.block_query("monary_test", "test_data",
+                                    {}, [colname], [coltype],
+                                    block_size=BLOCK_SIZE, sort="_id"):
+            yield block
 
 
 def test_count():
-    with get_monary_connection() as m:
-        assert m.count("monary_test", "test_data", {}) == NUM_TEST_RECORDS
+    total = 0
+    for block in get_monary_blocks("_id", "int32"):
+        total += block.count()
+    assert total == NUM_TEST_RECORDS
 
 
 def test_masks():
-    vals = get_monary_column("x", "int8")
+    unmasked = 0
+    for block in get_monary_blocks("x", "int8"):
+        unmasked += block.count()
     target_records = int(NUM_TEST_RECORDS / 2)
-    assert vals.count() == target_records
+    assert unmasked == target_records
 
 
 def test_sum():
-    vals = get_monary_column("_id", "int32")
+    total = 0
+    for block in get_monary_blocks("_id", "int32"):
+        total += block.sum()
     target_sum = NUM_TEST_RECORDS * (NUM_TEST_RECORDS - 1) / 2
-    assert vals.sum() == target_sum
-
-
-def test_sort():
-    vals = get_monary_column("_id", "int32")
-    assert (vals == list(xrange(NUM_TEST_RECORDS))).all()
+    assert total == target_sum
