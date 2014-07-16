@@ -6,7 +6,7 @@ import datetime
 import struct
 
 import bson
-import nose
+import numpy
 import pymongo
 
 import monary
@@ -84,7 +84,7 @@ def check_float_column(coltype):
     data = get_monary_column("floatval", coltype)
     expected = get_record_values("floatval")
     for d, e in zip(data, expected):
-        nose.tools.assert_almost_equal((d-e)/max(d,e), 0, places=5)
+        numpy.testing.assert_almost_equal((d-e)/max(d,e), 0, decimal=5)
 
 def test_int_columns():
     for coltype in ["int8", "int16", "int32", "int64"]:
@@ -135,9 +135,9 @@ def list_to_bsonable_dict(values):
 def test_bson_column():
     size = get_monary_column("subdocumentval", "size")[0]
     rawdata = get_monary_column("subdocumentval", "bson:%d" % size)
-    data = [ "".join(c for c in x.data.data) for x in rawdata ]
-    expected = [ "".join(c for c in bson.BSON.encode(record))
-            for record in get_record_values("subdocumentval") ]
+    data = ["".join(c for c in x.data.data) for x in rawdata]
+    expected = ["".join(c for c in bson.BSON.encode(record))
+            for record in get_record_values("subdocumentval")]
     assert data == expected
 
 def test_type_column():

@@ -9,9 +9,9 @@ import monary
 def setup():
     with pymongo.Connection("127.0.0.1") as c:
         c.drop_database("monary_test")
-        c.monary_test.data.insert({"test" : u"aあ"})
-        c.monary_test.data.insert({"test" : u"âéÇ"})
-        c.monary_test.data.insert({"test" : u"αλΩ"})
+        c.monary_test.data.insert({"test": u"aあ", "sequence": 1})
+        c.monary_test.data.insert({"test": u"âéÇ", "sequence": 2})
+        c.monary_test.data.insert({"test": u"αλΩ", "sequence": 3})
 
 def teardown():
     with pymongo.Connection("127.0.0.1") as c:

@@ -1,10 +1,11 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
-import sys
 import os
 import platform
+import re
 import subprocess
+import sys
 from distutils.core import setup, Command
 from distutils.command.build import build
 from distutils.ccompiler import new_compiler
@@ -24,10 +25,8 @@ if platform.system() == 'Windows':
     so_target = 'cmonary.dll'
 else:
     compiler_kw = {}
-    linker_kw = {'libraries' : ['ssl', 'crypto', 'pthread', 'sasl2']}
+    linker_kw = {'libraries' : ['pthread']}
     so_target = 'libcmonary.so' 
-    if 'Ubuntu' in platform.dist():
-        linker_kw['libraries'].append('rt')
 
 compiler = new_compiler(**compiler_kw)
 
@@ -54,20 +53,21 @@ class BuildCMongoDriver(Command):
     def run(self):
         try:
             os.chdir(CMONGO_SRC)
-            try:
-                subprocess.call(["autoreconf"])
-            except OSError:
-                sys.stderr.write("Warning: Failed to call autoreconf(1). Either"
-                                 " install autotools or ensure that autoreconf "
-                                 "is in PATH.")
 
-            status = subprocess.call(["./configure", "--enable-static", "--without-documentation"])
+            status = subprocess.call(["./configure", "--enable-static",
+                                      "--without-documentation",
+                                      "--disable-tests"])
             if status != 0:
                 raise BuildException("configure script failed with exit status {0}.".format(status))
 
             status = subprocess.call(["make"])
             if status != 0:
                 raise BuildException("make failed with exit status {0}".format(status))
+            # after configuring, add libs to linker_kw
+            with open(os.path.join("src", "libmongoc-1.0.pc")) as f:
+                libs = re.search(r"Libs:\s+(.+)$", f.read(), flags=re.MULTILINE).group(1)
+                libs = [l[2:] for l in re.split(r"\s+", libs) if l.startswith("-l")]
+                linker_kw["libraries"] += libs
         finally:
             os.chdir("..")
 
