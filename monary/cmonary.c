@@ -239,7 +239,7 @@ int monary_set_column_item(monary_column_data* coldata,
     
     col = coldata->columns + colnum;
 
-    col->field = malloc((len + 1));
+    col->field = malloc(len + 1);
     strcpy(col->field, field);
     
     col->type = type;
@@ -259,8 +259,8 @@ int monary_load_objectid_value(const bson_iter_t* bsonit,
 
     if (BSON_ITER_HOLDS_OID(bsonit)) {
         oid = bson_iter_oid(bsonit);
-        dest = ((uint8_t*) citem->storage) + (idx * 12);
-        memcpy(dest, oid->bytes, 12);
+        dest = ((uint8_t*) citem->storage) + (idx * sizeof(bson_oid_t));
+        memcpy(dest, oid->bytes, sizeof(bson_oid_t));
         return 1;
     } else {
         return 0;
