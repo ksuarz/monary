@@ -1,6 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
+import sys
 import os
 import platform
 import subprocess
@@ -8,7 +9,7 @@ from distutils.core import setup, Command
 from distutils.command.build import build
 from distutils.ccompiler import new_compiler
 
-DEBUG = True
+DEBUG = False
 
 VERSION = "0.3.0"
 
@@ -25,12 +26,14 @@ else:
     compiler_kw = {}
     linker_kw = {'libraries' : ['ssl', 'crypto', 'pthread', 'sasl2']}
     so_target = 'libcmonary.so' 
+    if 'Ubuntu' in platform.dist():
+        linker_kw['libraries'].append('rt')
 
 compiler = new_compiler(**compiler_kw)
 
 MONARY_DIR = "monary"
-CMONGO_SRC = "mongodb-mongo-c-driver-0.96.2"
-CFLAGS = ["--std=c99", "-fPIC", "-O2"]
+CMONGO_SRC = "mongodb-mongo-c-driver-0.96.4"
+CFLAGS = ["-fPIC", "-O2"]
 
 if not DEBUG:
     CFLAGS.append("-DNDEBUG")
@@ -50,10 +53,15 @@ class BuildCMongoDriver(Command):
         pass
     def run(self):
         try:
-            # chdir(2) should not fail except under exceptional circumstances (directory deleted, etc.)
             os.chdir(CMONGO_SRC)
+            try:
+                subprocess.call(["autoreconf"])
+            except OSError:
+                sys.stderr.write("Warning: Failed to call autoreconf(1). Either"
+                                 " install autotools or ensure that autoreconf "
+                                 "is in PATH.")
+
             status = subprocess.call(["./configure", "--enable-static", "--without-documentation"])
-            # TODO: What kind of exception do you want? Could just use regular old exception
             if status != 0:
                 raise BuildException("configure script failed with exit status {0}.".format(status))
 
@@ -76,7 +84,8 @@ class BuildCMonary(Command):
     def run(self):
         compiler.compile([os.path.join(MONARY_DIR, "cmonary.c")],
                          extra_preargs=CFLAGS,
-                         include_dirs=[os.path.join(CMONGO_SRC, "src", "mongoc"), os.path.join(CMONGO_SRC, "src", "libbson", "src", "bson")])
+                         include_dirs=[os.path.join(CMONGO_SRC, "src", "mongoc"),
+                                       os.path.join(CMONGO_SRC, "src", "libbson", "src", "bson")])
         compiler.link_shared_lib([os.path.join(MONARY_DIR, "cmonary.o"),
                                   os.path.join(CMONGO_SRC, ".libs", "libmongoc-1.0.a"),
                                   os.path.join(CMONGO_SRC, "src", "libbson", ".libs", "libbson-1.0.a")],
