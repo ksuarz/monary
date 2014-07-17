@@ -25,7 +25,7 @@ if platform.system() == 'Windows':
     so_target = 'cmonary.dll'
 else:
     compiler_kw = {}
-    linker_kw = {'libraries' : ['pthread']}
+    linker_kw = {'libraries' : ['ssl', 'crypto', 'pthread']}
     so_target = 'libcmonary.so' 
 
 compiler = new_compiler(**compiler_kw)
@@ -53,10 +53,10 @@ class BuildCMongoDriver(Command):
     def run(self):
         try:
             os.chdir(CMONGO_SRC)
-
             status = subprocess.call(["./configure", "--enable-static",
                                       "--without-documentation",
-                                      "--disable-tests"])
+                                      "--disable-maintainer-mode",
+                                      "--disable-tests", "--disable-examples"])
             if status != 0:
                 raise BuildException("configure script failed with exit status {0}.".format(status))
 
