@@ -24,7 +24,7 @@ if platform.system() == 'Windows':
     so_target = 'cmonary.dll'
 else:
     compiler_kw = {}
-    linker_kw = {'libraries' : ['ssl', 'crypto', 'pthread']}
+    linker_kw = {'libraries' : []}
     so_target = 'libcmonary.so' 
 
 compiler = new_compiler(**compiler_kw)
@@ -65,7 +65,7 @@ class BuildCMongoDriver(Command):
             # after configuring, add libs to linker_kw
             with open(os.path.join("src", "libmongoc-1.0.pc")) as f:
                 libs = re.search(r"Libs:\s+(.+)$", f.read(), flags=re.MULTILINE).group(1)
-                libs = [l[2:] for l in re.split(r"\s+", libs) if l.startswith("-l")]
+                libs = [l[2:] for l in re.split(r"\s+", libs)[:-1] if l.startswith("-l")]
                 linker_kw["libraries"] += libs
         finally:
             os.chdir("..")
