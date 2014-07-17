@@ -362,9 +362,9 @@ int monary_load_timestamp_value(const bson_iter_t* bsonit,
 {
     uint32_t timestamp;
     uint32_t increment;
-    void* dest;
+    char* dest;         // Would be void*, but Windows compilers complain
 
-    dest = citem->storage + idx*sizeof(int64_t);
+    dest = (char*) citem->storage + idx*sizeof(int64_t);
     if (BSON_ITER_HOLDS_TIMESTAMP(bsonit)) {
         bson_iter_timestamp(bsonit, &timestamp, &increment);
         memcpy(dest, &timestamp, sizeof(int32_t));
@@ -517,7 +517,7 @@ int monary_load_length_value(const bson_iter_t* bsonit,
             for (length = 0; bson_iter_next(&child); length++);
             break;
         case BSON_TYPE_BINARY:
-            bson_iter_binary(bsonit, NULL, &length, &discard);
+            bson_iter_binary(bsonit, NULL, &length, (const uint8_t**) &discard);
             break;
         default:
             return 0;
