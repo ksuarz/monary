@@ -5,9 +5,19 @@ import os
 import platform
 import re
 import subprocess
-from distutils.core import setup, Command
+import sys
+from distutils.core import Command
 from distutils.command.build import build
 from distutils.ccompiler import new_compiler
+
+# Don't force people to install setuptools unless
+# we have to.
+try:
+    from setuptools import setup
+except ImportError:
+    from ez_setup import use_setuptools
+    use_setuptools()
+    from setuptools import setup
 
 DEBUG = False
 
@@ -21,7 +31,7 @@ build.sub_commands = [ ("build_cmongo", None), ("build_cmonary", None) ] + build
 if platform.system() == 'Windows':
     compiler_kw = {'compiler' : 'mingw32'}
     linker_kw = {'libraries' : ['ws2_32']}
-    so_target = 'cmonary.dll'
+    so_target = 'libcmonary.dll'
 else:
     compiler_kw = {}
     linker_kw = {'libraries' : []}
