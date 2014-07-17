@@ -5,7 +5,6 @@ import os
 import platform
 import re
 import subprocess
-import sys
 from distutils.core import setup, Command
 from distutils.command.build import build
 from distutils.ccompiler import new_compiler
@@ -58,11 +57,11 @@ class BuildCMongoDriver(Command):
                                       "--disable-maintainer-mode",
                                       "--disable-tests", "--disable-examples"])
             if status != 0:
-                raise BuildException("configure script failed with exit status {0}.".format(status))
+                raise BuildException("configure script failed with exit status %d" % status)
 
             status = subprocess.call(["make"])
             if status != 0:
-                raise BuildException("make failed with exit status {0}".format(status))
+                raise BuildException("make failed with exit status %d" % status)
             # after configuring, add libs to linker_kw
             with open(os.path.join("src", "libmongoc-1.0.pc")) as f:
                 libs = re.search(r"Libs:\s+(.+)$", f.read(), flags=re.MULTILINE).group(1)
@@ -89,7 +88,7 @@ class BuildCMonary(Command):
         compiler.link_shared_lib([os.path.join(MONARY_DIR, "cmonary.o"),
                                   os.path.join(CMONGO_SRC, ".libs", "libmongoc-1.0.a"),
                                   os.path.join(CMONGO_SRC, "src", "libbson", ".libs", "libbson-1.0.a")],
-                                 "cmonary", "monary", **linker_kw)
+                                  "cmonary", "monary", **linker_kw)
 
 # Get README info
 try:
