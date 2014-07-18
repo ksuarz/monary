@@ -7,6 +7,6 @@ here, please let us know!
 - David J. C. Beach (djcbeach)
 - itaii
 - Jason Carey (hanumantmk)
-- Matt Cotter (Machyne)
+- Matt Cotter (machyne)
 - A Jesse Jiryu Davis (ajdavis)
 - Kyle Suarez (ksuarz)

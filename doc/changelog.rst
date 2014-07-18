@@ -15,6 +15,9 @@ Version 0.3.0 is a major overhaul of the backend code.
 - Debug messages are suppressed by default.
 - ``datehelper`` now allows negative timedeltas and time values to represent
   dates before the epoch.
+- Monary objects no longer supports the ``authenticate()`` method.
+  Authentication now occurs when a connection is made (in ``__init__()`` and
+  ``connect()``).
 
 
 Issues Resolved
@@ -54,7 +57,7 @@ Strict argument checks added to datehelper functions.
 Issues Resolved
 ...............
 Fixed a minor bug in ``datehelper.mongodelta_to_timedelta()``, which was not
-accepting a ``numpy.int63`` instance as the date value. (Now we simply convert
+accepting a ``numpy.int64`` instance as the date value. (Now we simply convert
 the argument to a Python int.)
 
 Changes in Version 0.1.1
