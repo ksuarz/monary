@@ -53,6 +53,8 @@ MongoDB has very flexible schemas; a consequence of this is that documents in
 the same collection can have fields of different types. To infer the type of
 data for a certain field name, specify the type of "type"::
 
+    >>> import monary
+    >>> m = monary.Monary("localhost")
     >>> m.query("test", "foo", {}, ["a"], ["type"])
     [masked_array(data = [16 2]
                  mask = [False False],
@@ -82,3 +84,13 @@ terminating ``NUL`` character.::
 
 Ideally, the size specified should be the least upper bound
 of the sizes of strings you are expecting to receive.
+
+When should I use a block query?
+--------------------------------
+Block query can be used to read through lots of documents while only viewing
+only a specified amount of documents at a time. This can save memory and
+decrease initial latency by processing documents in batches.
+
+.. seealso::
+
+    The :doc:`examples/block-query` for how to use block query.

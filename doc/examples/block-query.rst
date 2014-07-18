@@ -1,5 +1,5 @@
-Block Queries
-=============
+Block Query Example
+===================
 
 This quick example shows you how to use Monary's ``block_query`` command, and
 discusses what it does.
