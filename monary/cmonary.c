@@ -59,7 +59,7 @@ void monary_log_func (mongoc_log_level_t log_level,
  */
 void monary_init(void) {
     mongoc_init();
-#ifndef NDEBUG
+#ifdef NDEBUG
     mongoc_log_set_handler(monary_log_func, NULL);
 #endif
     DEBUG("%s", "monary module initialized");

@@ -26,7 +26,7 @@ def _load_cmonary_lib():
     abspath = os.path.abspath(thismodule)
     moduledir = list(os.path.split(abspath))[:-1]
     if platform.system() == 'Windows':
-        cmonary_fname = "cmonary.dll"
+        cmonary_fname = "libcmonary.dll"
     else:
         cmonary_fname = "libcmonary.so"
     cmonaryfile = os.path.join(*(moduledir + [cmonary_fname]))
