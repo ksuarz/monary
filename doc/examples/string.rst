@@ -80,17 +80,17 @@ their size, which returns the size of the strings in bytes::
     >>> m = Monary()
     >>> [sizes] = m.query("test", "data", {}, ["stringdata"], ["size"])
     >>> sizes
-    masked_array(data = [10L 8L 4L ... 7L 6L 10L],
+    masked_array(data = [10L 8L 4L ..., 7L 6L 10L],
                  mask = [False False False ... False False False],
            fill_value = 999999)
 
 If instead you are interested in the character lengths of the strings, you can
-specify for the length. For ASCII characters, this is one less than the size.::
+specify for the length. For ASCII characters, this is one less than the size::
 
     >>> [lengths] = m.query("test", "data", {}, ["stringdata"], ["length"])
     >>> lengths
-    masked_array(data = [9L 7L 3L ... 6L 5L 9L],
-                 mask = [False False False ... False False False],
+    masked_array(data = [9L 7L 3L ...,, 6L 5L 9L],
+                 mask = [False False False ..., False False False],
            fill_value = 999999)
 
 Now that we have the sizes of all the strings, we can find the maximum string
@@ -103,8 +103,8 @@ Finally, we can use this size to obtain the actual strings from MongoDB::
 
     >>> [data] = m.query("test", "data", {}, ["stringdata"], ["string:%d" % max_size])
     >>> data
-    masked_array(data = ['nbuvggamk' 'bkhwkwl' 'tvb' ... 'rsdefd' 'lpasx' 'wpdlxierd'],
-                 mask = [False False False ... False False False],
+    masked_array(data = ['nbuvggamk' 'bkhwkwl' 'tvb' ..., 'rsdefd' 'lpasx' 'wpdlxierd'],
+                 mask = [False False False ..., False False False],
            fill_value = N/A)
 
 Each of these values is a ``numpy.string_`` instance. You can convert it to a

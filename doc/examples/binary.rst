@@ -48,12 +48,12 @@ need to use the size of the biggest binary blob to avoid a loss of data.
 
 To find the size of the data in bytes, we use the ``size`` type::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
     >>> [sizes] = m.query("test", "data", {}, ["bindata"], ["size"])
     >>> sizes
-    masked_array(data = [128L 64L 100L ... 255L 255L 255L],
-                 mask = [False False False ... False False False],
+    masked_array(data = [128L 64L 100L ..., 255L 255L 255L],
+                 mask = [False False False ..., False False False],
            fill_value = 999999)
 
 Note that these sizes are unsigned 32-bit integers::

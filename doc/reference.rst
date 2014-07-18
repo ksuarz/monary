@@ -103,7 +103,7 @@ Here is a list of selected type codes, as per the specification:
 
 .. seealso::
 
-    Why do my integers have the type code for doubles in MongoDB?
+    :ref:`integer-double-type-code`
 
 Size
 ....

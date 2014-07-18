@@ -3,12 +3,15 @@ Frequently Asked Questions
 
 .. contents::
 
+.. _monary-inserts:
+
 Can Monary insert documents into MongoDB?
 -----------------------------------------
 Though there may be support for bulk inserts from arrays into MongoDB in the
 future, for now Monary can only retrieve data. It cannot perform any inserts. In
 the meantime, use `PyMongo <http://api.mongodb.org/python/current/>`_.
 
+.. _masked-values:
 
 Why does my array contain masked values?
 ----------------------------------------
@@ -22,16 +25,18 @@ If there are only some masked values in the result array, then some of the
 documents have fields with the specified name but not of the specified type.
 
 Consider, for example, inserting the following two documents at the mongo
-shell::
+shell:
 
-    > db.foo.insert({ a : NumberInt(1) });
+.. code-block:: javascript
+
+    > db.foo.insert({ a : NumberInt(1), sequence : 1 });
     WriteResult({ "nInserted" : 1 })
 
-    > db.foo.insert({ a : "hello" })
+    > db.foo.insert({ a : "hello", sequence : 2 })
     WriteResult({ "nInserted" : 1 })
 
-Because there is a type mismatch, some values will be masked depending on what
-type the query asks for::
+Because there is a type mismatch for the field "a", some values will be masked
+depending on what type the query asks for::
 
     >>> import monary
     >>> m = monary.Monary("localhost")
@@ -46,6 +51,7 @@ type the query asks for::
            fill_value = N/A)
     ]
 
+.. _data-types:
 
 What if I don't know what type of data I want from MongoDB?
 -----------------------------------------------------------
@@ -68,6 +74,7 @@ This returns an 8-bit integer containing the BSON type code for the object.
     The `BSON specification <http://bsonspec.org/spec.html>`_ for the
     BSON type codes.
 
+.. _using-strings:
 
 How do I retrieve strings data using Monary?
 --------------------------------------------
@@ -85,6 +92,12 @@ terminating ``NUL`` character.::
 Ideally, the size specified should be the least upper bound
 of the sizes of strings you are expecting to receive.
 
+.. seealso::
+
+    :doc:`examples/string`
+
+.. _using-block-queries:
+
 When should I use a block query?
 --------------------------------
 Block query can be used to read through lots of documents while only viewing
@@ -94,3 +107,40 @@ decrease initial latency by processing documents in batches.
 .. seealso::
 
     The :doc:`examples/block-query` for how to use block query.
+
+.. _integer-double-type-code:
+
+Why do my integers have a "double" type code?
+---------------------------------------------
+Though the numbers look like integers, they are being stored internally as
+doubles. This most commonly happens at the mongo shell:
+
+.. code-block:: javascript
+
+    > db.foo.insert({ a : 1 })
+    WriteResult({ "nInserted" : 1 })
+
+This results in::
+
+    >>> m.query("test", "foo", {}, ["a"], ["type"])
+    [masked_array(data = [1],
+                 mask = [False],
+           fill_value = N/A)
+    ]
+
+Because the mongo shell is a JavaScript interpreter, it follows the rules of
+JavaScript: all numbers are floating-point. If you'd like to insert strictly
+integers into MongoDB, use ``NumberInt``:
+
+.. code-block:: javascript
+
+    > db.foo.insert({ b : NumberInt(1) })
+    WriteResult({ "nInserted" : 1 })
+
+This yields the expected type code::
+
+    >>> m.query("test", "foo", {}, ["b"], ["type"])
+    [masked_array(data = [16],
+                 mask = [False],
+           fill_value = N/A)
+    ]
