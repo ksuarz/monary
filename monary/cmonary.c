@@ -44,6 +44,36 @@ enum {
 };
 
 /**
+ * Controls the logging performed by libmongoc.
+ */
+void monary_log_func (mongoc_log_level_t log_level,
+                      const char* log_domain,
+                      const char* message,
+                      void* user_data)
+{
+    return;
+}
+
+/**
+ * Initialize libmongoc.
+ */
+void monary_init(void) {
+    mongoc_init();
+#ifndef NDEBUG
+    mongoc_log_set_handler(monary_log_func, NULL);
+#endif
+    DEBUG("%s", "monary module initialized");
+}
+
+/**
+ * Releases resources used by libmongoc.
+ */
+void monary_cleanup(void) {
+    mongoc_cleanup();
+    DEBUG("%s", "monary module cleaned up");
+}
+
+/**
  * Makes a new connection to a MongoDB server and database.
  *
  * @param uri A MongoDB URI, as per mongoc_uri(7).

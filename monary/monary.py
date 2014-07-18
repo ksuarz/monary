@@ -1,6 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
+import atexit
 import os.path
 import platform
 from urllib import urlencode
@@ -45,6 +46,8 @@ CTYPE_CODES = {
 # List of C function definitions from the cmonary library
 FUNCDEFS = [
     # format: "func_name:arg_types:return_type"
+    "monary_init::0",
+    "monary_cleanup::0",
     "monary_connect:S:P",
     "monary_disconnect:P:0",
     "monary_use_collection:PSS:P",
@@ -70,6 +73,10 @@ def _decorate_cmonary_functions():
         func.restype = CTYPE_CODES[restype]
 
 _decorate_cmonary_functions()
+
+# Initialize Monary and register the cleanup function
+cmonary.monary_init()
+atexit.register(cmonary.monary_cleanup)
 
 # Table of type names and conversions between cmonary and numpy types
 MONARY_TYPES = {
