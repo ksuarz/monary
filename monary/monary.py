@@ -70,7 +70,9 @@ FUNCDEFS = [
     "monary_free_column_data:P:I",
     "monary_set_column_item:PUSUUPP:I",
     "monary_query_count:PP:L",
+    "monary_aggregation_count:PP:L",
     "monary_init_query:PUUPPI:P",
+    "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
 ]
@@ -404,6 +406,33 @@ class Monary(object):
             raise RuntimeError("Internal error in count()")
         return count
 
+    def count_aggregation(self, db, coll, pipeline=None):
+        """Count the number of records that will be returned by the aggregation.
+
+        Note that this actually executes an aggregation query using the pipeline
+        provided.
+
+        :param db: name of database
+        :param coll: name of the collection to perform the aggregation
+        :param query: (optional) dictionary representing a pipeline
+
+        :returns: the number of records
+        :rtype: int
+        """
+
+        try:
+            collection = self._get_collection(db, coll)
+            if collection is None:
+                raise ValueError("couldn't connect to collection %s.%s" % (db, coll))
+            pipeline = make_bson(pipeline)
+            count = cmonary.monary_aggregation_count(collection, pipeline)
+        finally:
+            if collection is not None:
+                cmonary.monary_destroy_collection(collection)
+        if count < 0:
+            raise RuntimeError("Internal error in count()")
+        return count
+
     def query(self, db, coll, query, fields, types,
               sort=None, hint=None,
               limit=0, offset=0,
@@ -536,6 +565,33 @@ class Monary(object):
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+
+    def aggregate(self, db, coll, pipeline, fields, types):
+        """Performs an aggregation operation.
+        """
+        pipeline = get_plain_query(pipeline)
+        count = self.count_aggregation(db, coll, pipeline)
+
+        coldata = None
+        try:
+            coldata, colarrays = self._make_column_data(fields, types, count)
+            cursor = None
+            try:
+                collection = self._get_collection(db, coll)
+                if collection is None:
+                    raise ValueError("unable to get the collection")
+                cursor = cmonary.monary_init_aggregate(collection, pipeline, coldata)
+                cmonary.monary_load_query(cursor)
+            finally:
+                if cursor is not None:
+                    cmonary.monary_close_query(cursor)
+                if collection is not None:
+                    cmonary.monary_destroy_collection(collection)
+        finally:
+            if coldata is not None:
+                cmonary.monary_free_column_data(coldata)
+        return colarrays
+
 
     def close(self):
         """Closes the current connection, if any."""
