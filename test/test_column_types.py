@@ -137,7 +137,7 @@ def test_bson_column():
     rawdata = get_monary_column("subdocumentval", "bson:%d" % size)
     data = ["".join(c for c in x.data.data) for x in rawdata]
     expected = ["".join(c for c in bson.BSON.encode(record))
-            for record in get_record_values("subdocumentval")]
+                for record in get_record_values("subdocumentval")]
     assert data == expected
 
 def test_type_column():
