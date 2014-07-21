@@ -5,7 +5,7 @@ Overview
 --------
 **Monary** provides a Python interface for fast column queries from `MongoDB
 <http://www.mongodb.org>`_. It is recommended over PyMongo when requiring large
-bulk reads from a database into arrays.
+bulk reads from a database into `NumPy arrays <http://www.numpy.org/>`_.
 
 Note that Monary is still in beta. There are no guarantees of API stability;
 furthermore, dependencies may change in the future.

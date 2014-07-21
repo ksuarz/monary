@@ -3,6 +3,14 @@ Frequently Asked Questions
 
 .. contents::
 
+.. _monary-inserts:
+
+Can Monary insert documents into MongoDB?
+-----------------------------------------
+Though there may be support for bulk inserts from arrays into MongoDB in the
+future, for now Monary can only retrieve data. It cannot perform any inserts. In
+the meantime, use `PyMongo <http://api.mongodb.org/python/current/>`_.
+
 .. _masked-values:
 
 Why does my array contain masked values?
@@ -10,8 +18,9 @@ Why does my array contain masked values?
 Typically, a value is masked if the data type you specify for a field is
 incompatible with the actual type retrieved from the document in MongoDB.
 
-If the entire array is masked, then all of the matching fields in the database
-have an incompatible type.
+If the entire array is masked, there are no documents in the collection that
+contain that field, or all of the matching fields in the database have an
+incompatible type.
 
 If there are only some masked values in the result array, then some of the
 documents have fields with the specified name but not of the specified type.

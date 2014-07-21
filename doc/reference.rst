@@ -9,6 +9,7 @@ The following data types are supported:
 * `ObjectID <http://dochub.mongodb.org/core/objectids>`_
 * UTC datetime 
 * timestamp 
+* binary
 * UTF-8 string
 * BSON document 
 * type 
@@ -62,6 +63,10 @@ represent a timestamp. For storing arbitrary times, use datetime instead.
 .. seealso::
 
     :doc:`examples/timestamp` for an example of using timestamps.
+
+Binary
+......
+Binary data retrieved from MongoDB is accessed via 
 
 Strings
 .......

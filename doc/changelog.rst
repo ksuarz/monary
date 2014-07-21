@@ -26,7 +26,8 @@ Issues Resolved
 ...............
 The new connection format fixes a `bug
 <https://bitbucket.org/djcbeach/monary/issue/5/if-host-is-set-to-localhost-in>`_
-where ``monary.Monary("localhost")`` would cause a segmentation fault.
+where connection failures or invoking the constructor with
+``monary.Monary("localhost")`` would cause a segmentation fault.
 
 Changes in Version 0.2.3
 ------------------------

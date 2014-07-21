@@ -1,8 +1,8 @@
 Binary Data Example
 ===================
 
-This quick example shows you how to obtain blocks of binary data from MongoDB
-with Monary.
+This example shows you how to obtain blocks of binary data from MongoDB with
+Monary.
 
 Setup
 -----
@@ -13,8 +13,8 @@ MongoDB. First, we can set up a connection to the local MongoDB database::
     >>> from pymongo import MongoClient
     >>> client = MongoClient()
 
-Next, we open some random image files. For simplicity's sake, assume we have
-image files named ``img0.jpg`` through ``img99.jpg``::
+Next, we open some random image files. Assume we have image files named
+``img0.jpg`` through ``img99.jpg``::
 
     >>> images = []
     >>> for i in range(0, 100):
@@ -42,9 +42,9 @@ This creates 100 files, each containing ``$SIZE`` bytes of random data.
 
 Finding Binary Data
 -------------------
-To perform a find query on binary data, Monary requires the size of the binary
-to load in. Since the data in different documents can be of different sizes, we
-need to use the size of the biggest binary blob to avoid a loss of data.
+To query binary data, Monary requires the size of the binary to load in. Since
+the data in different documents can be of different sizes, we need to use the
+size of the biggest binary blob to avoid a loss of data.
 
 To find the size of the data in bytes, we use the ``size`` type::
 

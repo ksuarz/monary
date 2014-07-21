@@ -42,6 +42,7 @@ Finding String Data
 
 String Sizing
 .............
+
 Monary can obtain strings from MongoDB if you specify the size of the strings in
 bytes.
 
@@ -72,6 +73,9 @@ string or Unicode object, take its length and add one for the terminating
     >>> def strlen_in_bytes(string):
     ...     return len(string.encode("utf-8")) + 1
 
+Monary provides a way to query the database directly for the byte sizes of
+strings.
+
 Performing Queries
 ..................
 If we don't know the maximum size of the strings in advance, we can
@@ -84,15 +88,6 @@ strings in bytes::
     >>> sizes
     masked_array(data = [10L 8L 4L ..., 7L 6L 10L],
                  mask = [False False False ... False False False],
-           fill_value = 999999)
-
-If instead you are interested in the character lengths of the strings, you can
-specify for the length. For ASCII characters, this is one less than the size::
-
-    >>> lengths, = m.query("test", "data", {}, ["stringdata"], ["length"])
-    >>> lengths
-    masked_array(data = [9L 7L 3L ...,, 6L 5L 9L],
-                 mask = [False False False ..., False False False],
            fill_value = 999999)
 
 Now that we have the sizes of all the strings, we can find the maximum string

@@ -8,5 +8,5 @@ here, please let us know!
 - itaii
 - Jason Carey (hanumantmk)
 - Matt Cotter (machyne)
-- A Jesse Jiryu Davis (ajdavis)
+- A\. Jesse Jiryu Davis (ajdavis)
 - Kyle Suarez (ksuarz)

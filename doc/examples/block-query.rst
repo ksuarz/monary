@@ -1,16 +1,13 @@
-Block Query Example
-===================
+Block Query
+===========
 
-This quick example shows you how to use Monary's ``block_query`` command, and
-discusses what it does.
+This example demonstrates the use of Monary's ``block_query`` command.
 
-What is Block Query
--------------------
-``block_query`` functions very similarly to ``query``. The main difference is
-that ``block_query`` returns a generator. Furthermore, all but the last Numpy
-masked arrays that block_query returns will be overwritten as the user iterates
-through the results. ``block_query`` is desirable because it allows the user
-to specify the number of documents to be read at a time.
+``block_query`` functions similarly to ``query``. The main difference is that
+``block_query`` returns a generator. Furthermore, all but the last NumPy masked
+arrays that block_query returns will be overwritten as the user iterates through
+the results. This allows users to process unlimited or unknown amounts of data
+with a fixed amount of memory.
 
 Setup
 -----
@@ -20,8 +17,8 @@ into MongoDB. First, we can set up a connection to the local MongoDB database::
     >>> from pymongo import MongoClient
     >>> client = MongoClient()
 
-Next, we generate some documents. In this example, these documents will
-represent financial assets::
+Next, we generate some documents. These documents will represent financial
+assets::
 
     >>> import random
     >>> documents = []
