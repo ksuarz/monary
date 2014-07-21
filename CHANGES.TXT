@@ -15,6 +15,8 @@ Version 0.3.0
 
     * datehelper.py now allows negative timedeltas and times before the epoch
 
+    * Removed the authenticate() method, this is a _breaking change_.
+
 Version 0.2.3
 -------------
 

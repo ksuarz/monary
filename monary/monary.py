@@ -1,6 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
+import atexit
 import os.path
 import platform
 import sys
@@ -38,7 +39,9 @@ def _load_cmonary_lib():
     abspath = os.path.abspath(thismodule)
     moduledir = list(os.path.split(abspath))[:-1]
     if platform.system() == 'Windows':
-        cmonary_fname = "cmonary.dll"
+        CDLL(os.path.join(*(moduledir + ['libbson-1.0.dll'])))
+        CDLL(os.path.join(*(moduledir + ['libmongoc-1.0.dll'])))
+        cmonary_fname = "libcmonary.dll"
     else:
         cmonary_fname = "libcmonary.so"
     cmonaryfile = os.path.join(*(moduledir + [cmonary_fname]))
@@ -58,6 +61,8 @@ CTYPE_CODES = {
 # List of C function definitions from the cmonary library
 FUNCDEFS = [
     # format: "func_name:arg_types:return_type"
+    "monary_init::0",
+    "monary_cleanup::0",
     "monary_connect:S:P",
     "monary_disconnect:P:0",
     "monary_use_collection:PSS:P",
@@ -86,29 +91,35 @@ def _decorate_cmonary_functions():
 
 _decorate_cmonary_functions()
 
+# Initialize Monary and register the cleanup function
+cmonary.monary_init()
+atexit.register(cmonary.monary_cleanup)
+
 # Table of type names and conversions between cmonary and numpy types
 MONARY_TYPES = {
     # "common_name": (cmonary_type_code, numpy_type_object)
-    "id": (1, "<V12"),
-    "bool": (2, numpy.bool),
-    "int8": (3, numpy.int8),
-    "int16": (4, numpy.int16),
-    "int32": (5, numpy.int32),
-    "int64": (6, numpy.int64),
-    "uint8": (7, numpy.uint8),
-    "uint16": (8, numpy.uint16),
-    "uint32": (9, numpy.uint32),
-    "uint64": (10, numpy.uint64),
-    "float32": (11, numpy.float32),
-    "float64": (12, numpy.float64),
-    "date": (13, numpy.int64),
+    "id":        (1, "<V12"),
+    "bool":      (2, numpy.bool),
+    "int8":      (3, numpy.int8),
+    "int16":     (4, numpy.int16),
+    "int32":     (5, numpy.int32),
+    "int64":     (6, numpy.int64),
+    "uint8":     (7, numpy.uint8),
+    "uint16":    (8, numpy.uint16),
+    "uint32":    (9, numpy.uint32),
+    "uint64":    (10, numpy.uint64),
+    "float32":   (11, numpy.float32),
+    "float64":   (12, numpy.float64),
+    "date":      (13, numpy.int64),
     "timestamp": (14, numpy.uint64),
-    "string": (15, "S"),  # The length argument INCLUDES the null character
-    "binary": (16, "<V"),  # Little-endian raw data (void pointer)
-    "bson": (17, "<V"),
-    "type": (18, numpy.uint8),
-    "size": (19, numpy.uint32),
-    "length": (20, numpy.uint32)
+    # The length argument here INCLUDES the null character
+    "string":    (15, "S"),
+    # Raw data (void pointer)
+    "binary":    (16, "<V"),
+    "bson":      (17, "<V"),
+    "type":      (18, numpy.uint8),
+    "size":      (19, numpy.uint32),
+    "length":    (20, numpy.uint32)
 }
 
 

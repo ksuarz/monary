@@ -40,8 +40,38 @@ enum {
     TYPE_TYPE = 18,      // BSON type code (uint8 storage)
     TYPE_SIZE = 19,      // data size of a string, symbol, binary, or bson object (uint32)
     TYPE_LENGTH = 20,    // length of string (character count) or num elements in BSON (uint32)
-    LAST_TYPE = 20,      // BSON type code as per the BSON specificaion
+    LAST_TYPE = 20       // BSON type code as per the BSON specificaion
 };
+
+/**
+ * Controls the logging performed by libmongoc.
+ */
+void monary_log_func (mongoc_log_level_t log_level,
+                      const char* log_domain,
+                      const char* message,
+                      void* user_data)
+{
+    return;
+}
+
+/**
+ * Initialize libmongoc.
+ */
+void monary_init(void) {
+    mongoc_init();
+#ifdef NDEBUG
+    mongoc_log_set_handler(monary_log_func, NULL);
+#endif
+    DEBUG("%s", "monary module initialized");
+}
+
+/**
+ * Releases resources used by libmongoc.
+ */
+void monary_cleanup(void) {
+    mongoc_cleanup();
+    DEBUG("%s", "monary module cleaned up");
+}
 
 /**
  * Makes a new connection to a MongoDB server and database.
@@ -167,9 +197,12 @@ typedef struct monary_cursor {
 monary_column_data* monary_alloc_column_data(unsigned int num_columns,
                                              unsigned int num_rows)
 {
+    monary_column_data* result;
+    monary_column_item* columns;
+
     if(num_columns > MONARY_MAX_NUM_COLUMNS) { return NULL; }
-    monary_column_data* result = (monary_column_data*) malloc(sizeof(monary_column_data));
-    monary_column_item* columns = (monary_column_item*) calloc(num_columns, sizeof(monary_column_item));
+    result = (monary_column_data*) malloc(sizeof(monary_column_data));
+    columns = (monary_column_item*) calloc(num_columns, sizeof(monary_column_item));
 
     DEBUG("%s", "Column data allocated");
 
@@ -239,7 +272,7 @@ int monary_set_column_item(monary_column_data* coldata,
     
     col = coldata->columns + colnum;
 
-    col->field = malloc((len + 1));
+    col->field = malloc(len + 1);
     strcpy(col->field, field);
     
     col->type = type;
@@ -259,8 +292,8 @@ int monary_load_objectid_value(const bson_iter_t* bsonit,
 
     if (BSON_ITER_HOLDS_OID(bsonit)) {
         oid = bson_iter_oid(bsonit);
-        dest = ((uint8_t*) citem->storage) + (idx * 12);
-        memcpy(dest, oid->bytes, 12);
+        dest = ((uint8_t*) citem->storage) + (idx * sizeof(bson_oid_t));
+        memcpy(dest, oid->bytes, sizeof(bson_oid_t));
         return 1;
     } else {
         return 0;
@@ -303,8 +336,8 @@ int FUNCNAME (const bson_iter_t* bsonit,                                     \
 }
 
 // Floating point
-MONARY_DEFINE_FLOAT_LOADER(monary_load_float32_value, float);
-MONARY_DEFINE_FLOAT_LOADER(monary_load_float64_value, double);
+MONARY_DEFINE_FLOAT_LOADER(monary_load_float32_value, float)
+MONARY_DEFINE_FLOAT_LOADER(monary_load_float64_value, double)
 
 #define MONARY_DEFINE_INT_LOADER(FUNCNAME, NUMTYPE)                          \
 int FUNCNAME (const bson_iter_t* bsonit,                                     \
@@ -362,9 +395,9 @@ int monary_load_timestamp_value(const bson_iter_t* bsonit,
 {
     uint32_t timestamp;
     uint32_t increment;
-    void* dest;
+    char* dest;         // Would be void*, but Windows compilers complain
 
-    dest = citem->storage + idx*sizeof(int64_t);
+    dest = (char*) citem->storage + idx*sizeof(int64_t);
     if (BSON_ITER_HOLDS_TIMESTAMP(bsonit)) {
         bson_iter_timestamp(bsonit, &timestamp, &increment);
         memcpy(dest, &timestamp, sizeof(int32_t));
@@ -517,7 +550,7 @@ int monary_load_length_value(const bson_iter_t* bsonit,
             for (length = 0; bson_iter_next(&child); length++);
             break;
         case BSON_TYPE_BINARY:
-            bson_iter_binary(bsonit, NULL, &length, &discard);
+            bson_iter_binary(bsonit, NULL, &length, (const uint8_t**) &discard);
             break;
         default:
             return 0;
@@ -740,8 +773,9 @@ monary_cursor* monary_init_query(mongoc_collection_t* collection,
 {
     bson_t query_bson;          // BSON representing the query to perform
     bson_t* fields_bson;        // BSON holding the fields to select
-    mongoc_cursor_t* mcursor;   // A MongoDB cursor
     int32_t query_size;
+    monary_cursor* cursor;
+    mongoc_cursor_t* mcursor;   // A MongoDB cursor
 
     // Sanity checks
     if (!collection || !query || !coldata) {
@@ -791,7 +825,7 @@ monary_cursor* monary_init_query(mongoc_collection_t* collection,
     }
 
     // finally, create a new Monary cursor
-    monary_cursor* cursor = (monary_cursor*) malloc(sizeof(monary_cursor));
+    cursor = (monary_cursor*) malloc(sizeof(monary_cursor));
     cursor->mcursor = mcursor;
     cursor->coldata = coldata;
     return cursor;

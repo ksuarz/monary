@@ -6,8 +6,8 @@ import datetime
 import struct
 import sys
 
-import nose
 import bson
+import numpy
 import pymongo
 
 import monary
@@ -107,8 +107,8 @@ def check_float_column(coltype):
     data = get_monary_column("floatval", coltype)
     expected = get_record_values("floatval")
     for d, e in zip(data, expected):
-        nose.tools.assert_almost_equal((d - e) / max(d, e),
-                                       0, places=5)
+        numpy.testing.assert_almost_equal((d - e) / max(d, e),
+                                          0, decimal=5)
 
 
 def test_int_columns():

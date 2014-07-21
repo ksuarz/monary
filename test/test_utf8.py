@@ -12,9 +12,9 @@ import monary
 def setup():
     with pymongo.MongoClient("127.0.0.1") as c:
         c.drop_database("monary_test")
-        c.monary_test.data.insert({"test": u"aあ"})
-        c.monary_test.data.insert({"test": u"âéÇ"})
-        c.monary_test.data.insert({"test": u"αλΩ"})
+        c.monary_test.data.insert({"test": u"aあ", "sequence": 1})
+        c.monary_test.data.insert({"test": u"âéÇ", "sequence": 2})
+        c.monary_test.data.insert({"test": u"αλΩ", "sequence": 3})
 
 
 def teardown():
@@ -36,5 +36,4 @@ def test_utf8():
         if sys.version_info[0] >= 3:
             # Python 3
             x = x.decode('utf8')
-        print(x, y)
         assert x == y
