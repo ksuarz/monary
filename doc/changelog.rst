@@ -5,17 +5,19 @@ Changes in Version 0.3.0
 ------------------------
 Version 0.3.0 is a major overhaul of the backend code.
 
-- Upgrade to latest version of the MongoDB C driver (0.96.4).
+- Upgrade to latest version of the MongoDB C driver (0.98.0).
 - ``monary_connect`` now takes a MongoDB URI or hostname and port. See the
   `connection string documentation
   <http://docs.mongodb.org/manual/reference/connection-string/>`_ for more
   information.
-- Monary can now upcast or downcast to and from any integer or floating-point
-  type retrieved from MongoDB.
+- Monary can now freely cast between integer and floating-point values.
 - Debug messages are suppressed by default.
 - ``datehelper`` now allows negative timedeltas and time values to represent
   dates before the epoch.
-- Monary objects no longer supports the ``authenticate()`` method.
+- Monary objects no longer supports the ``authenticate()`` method, which is a
+  breaking change. If your code relied on ``authenticate()``, you must now
+  include the username and password in the MongoDB URI passed into the Monary
+  constructor.
   Authentication now occurs when a connection is made (in ``__init__()`` and
   ``connect()``).
 
