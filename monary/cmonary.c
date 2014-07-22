@@ -663,68 +663,6 @@ int monary_bson_to_arrays(monary_column_data* coldata,
 }
 
 /**
- * Determines the number of documents that would be returned by the aggregation.
- *
- * @param collection The MongoDB collection on which to perform the aggregation.
- * @param pipeline A pointer to a BSON buffer representing the pipeline.
- *
- * @return If successful, returns the number of documents counted. Otherwise,
- * returns -1.
- */
-int64_t monary_aggregation_count(mongoc_collection_t* collection,
-                                 const uint8_t* pipeline)
-{
-    bson_error_t error;
-    bson_t pl_bson;
-    const bson_t* bson;
-    int64_t result;
-    int32_t pl_size;
-    mongoc_cursor_t* cursor;
-
-    // Sanity checks
-    if (!collection) {
-        DEBUG("%s", "Invalid collection");
-        return -1;
-    }
-    else if (!pipeline) {
-        DEBUG("%s", "Invalid pipeline");
-        return -1;
-    }
-    
-    // Build BSON pipeline
-    memcpy(&pl_size, pipeline, sizeof(int32_t));
-    pl_size = (int32_t) BSON_UINT32_FROM_LE(pl_size);
-    if (!bson_init_static(&pl_bson,
-                          pipeline,
-                          pl_size)) {
-        DEBUG("%s", "Failed to initialize raw BSON pipeline");
-        return -1;
-    }
-
-    // Get an aggregation cursor
-    cursor = mongoc_collection_aggregate(collection,
-                                         MONGOC_QUERY_NONE,
-                                         &pl_bson,
-                                         NULL,
-                                         NULL);
-
-    // Do the counting
-    result = 0;
-    while (!mongoc_cursor_error(cursor, &error)
-            && mongoc_cursor_next(cursor, &bson)) {
-        ++result;
-    }
-    
-    if (mongoc_cursor_error(cursor, &error)) {
-        DEBUG("error: %d.%d %s", error.domain, error.code, error.message);
-    }
-
-    // Cleanup
-    bson_destroy(&pl_bson);
-    return result;
-}
-
-/**
  * Performs a count query on a MongoDB collection.
  *
  * @param collection The MongoDB collection to query against.
@@ -882,6 +820,7 @@ monary_cursor* monary_init_query(mongoc_collection_t* collection,
  *
  * @param collection The MongoDB collection to query against.
  * @param pipeline A pointer to a BSON buffer representing the pipeline.
+ * @param coldata The column data to store the results in.
  *
  * @return If successful, a Monary cursor that should be freed with
  * monary_close_query() when no longer in use. If unsuccessful, or if an invalid

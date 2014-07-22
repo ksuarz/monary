@@ -70,7 +70,6 @@ FUNCDEFS = [
     "monary_free_column_data:P:I",
     "monary_set_column_item:PUSUUPP:I",
     "monary_query_count:PP:L",
-    "monary_aggregation_count:PP:L",
     "monary_init_query:PUUPPI:P",
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
