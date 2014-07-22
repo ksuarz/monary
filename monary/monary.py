@@ -565,22 +565,42 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def aggregate(self, db, coll, pipeline, fields, types):
+    def aggregate(self, db, coll, pipeline, fields, types,
+                  block_size=8192, limit=0):
         """Performs an aggregation operation.
+
+           There is no way to know in advance the size of the result set of an
+           aggregation command; therefore results are always returned TODO
         """
+        if block_size < 1:
+            raise ValueError("Block size must be a positive integer")
+
+        if not isinstance(pipeline, (dict, list)):
+            raise TypeError("pipeline must be a dictionary or list")
+
+        if isinstance(pipeline, list):
+            pipeline = { "pipeline" : pipeline }
         pipeline = get_plain_query(pipeline)
-        count = self.count_aggregation(db, coll, pipeline)
 
         coldata = None
         try:
-            coldata, colarrays = self._make_column_data(fields, types, count)
+            coldata, colarrays = self._make_column_data(fields, types, block_size)
             cursor = None
             try:
                 collection = self._get_collection(db, coll)
                 if collection is None:
                     raise ValueError("unable to get the collection")
                 cursor = cmonary.monary_init_aggregate(collection, pipeline, coldata)
-                cmonary.monary_load_query(cursor)
+
+                while True:
+                    num_rows = cmonary.monary_load_query(cursor)
+                    if num_rows == block_size:
+                        yield colarrays
+                    elif num_rows > 0:
+                        yield [ arr[:num_rows] for arr in colarrays ]
+                        break
+                    else:
+                        break
             finally:
                 if cursor is not None:
                     cmonary.monary_close_query(cursor)
@@ -589,8 +609,6 @@ class Monary(object):
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
-        return colarrays
-
 
     def close(self):
         """Closes the current connection, if any."""
