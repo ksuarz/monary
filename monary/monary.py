@@ -405,33 +405,6 @@ class Monary(object):
             raise RuntimeError("Internal error in count()")
         return count
 
-    def count_aggregation(self, db, coll, pipeline=None):
-        """Count the number of records that will be returned by the aggregation.
-
-        Note that this actually executes an aggregation query using the pipeline
-        provided.
-
-        :param db: name of database
-        :param coll: name of the collection to perform the aggregation
-        :param query: (optional) dictionary representing a pipeline
-
-        :returns: the number of records
-        :rtype: int
-        """
-
-        try:
-            collection = self._get_collection(db, coll)
-            if collection is None:
-                raise ValueError("couldn't connect to collection %s.%s" % (db, coll))
-            pipeline = make_bson(pipeline)
-            count = cmonary.monary_aggregation_count(collection, pipeline)
-        finally:
-            if collection is not None:
-                cmonary.monary_destroy_collection(collection)
-        if count < 0:
-            raise RuntimeError("Internal error in count()")
-        return count
-
     def query(self, db, coll, query, fields, types,
               sort=None, hint=None,
               limit=0, offset=0,
