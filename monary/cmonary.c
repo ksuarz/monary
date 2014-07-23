@@ -644,19 +644,14 @@ int monary_bson_to_arrays(monary_column_data* coldata,
     for (i = 0; i < coldata->num_columns; i++) {
         success = 0;
         citem = coldata->columns + i;
-        if (strstr(citem->field, ".")) {
-            // Look for a subdocument
-            bson_iter_init(&bsonit, bson_data);
-            if (bson_iter_find_descendant(&bsonit, citem->field, &descendant)) {
-                success = monary_load_item(&descendant, citem, row);
-            }
-        } else {
-            // Look for a top-level field
-            if (bson_iter_init_find(&bsonit, bson_data, citem->field)) {
-                success = monary_load_item(&bsonit, citem, row);
-            }
+
+        // Use the iterator to find the field we want
+        bson_iter_init(&bsonit, bson_data);
+        if (bson_iter_find_descendant(&bsonit, citem->field, &descendant)) {
+            success = monary_load_item(&descendant, citem, row);
         }
 
+        // Record success in mask
         if (citem->mask != NULL) {
             citem->mask[row] = !success;
         }
