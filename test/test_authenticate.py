@@ -13,7 +13,7 @@ def setup():
     cmd_opts = pymongo.MongoClient().admin.command('getCmdLineOpts')['argv']
     assert "--auth" in cmd_opts, "The mongo server (mongod) needs to be"\
                                  "running with authentication (--auth)"
-    connection = pymongo.MongoClient()
+    connection = pymongo.Connection()
     db = connection.monary_auth_test
     db.add_user("monary_test_user", "monary_test_pass")
     db.authenticate("monary_test_user", "monary_test_pass")

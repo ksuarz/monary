@@ -18,19 +18,19 @@ BATCH_SIZE = 1000
 
 
 def do_insert():
-    c = pymongo.MongoClient("localhost")
+    c = pymongo.Connection("localhost")
     collection = c.monary_test.collection
 
     with profile("insert"):
         for i in xrange(NUM_BATCHES):
-            stuff = []
+            stuff = [ ]
             for j in xrange(BATCH_SIZE):
                 record = dict(x1=random.uniform(0, 1),
                               x2=random.uniform(0, 2),
                               x3=random.uniform(0, 3),
                               x4=random.uniform(0, 4),
                               x5=random.uniform(0, 5)
-                              )
+                         )
                 stuff.append(record)
             collection.insert(stuff)
 

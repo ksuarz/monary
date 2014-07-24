@@ -7,16 +7,15 @@ import pymongo
 
 from profile import profile
 
-
 def do_pymongo_query():
 
-    c = pymongo.MongoClient("localhost")
+    c = pymongo.Connection("localhost")
     collection = c.monary_test.collection
 
     with profile("pymongo query"):
         num = collection.count()
-        arrays = [numpy.zeros(num) for i in range(5)]
-        fields = ["x1", "x2", "x3", "x4", "x5"]
+        arrays = [ numpy.zeros(num) for i in range(5) ]
+        fields = [ "x1", "x2", "x3", "x4", "x5" ]
         arrays_fields = list(zip(arrays, fields))
 
         for i, record in enumerate(collection.find()):

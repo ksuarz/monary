@@ -4,6 +4,6 @@
 import pymongo
 
 if __name__ == '__main__':
-    c = pymongo.MongoClient("localhost")
+    c = pymongo.Connection("localhost")
     c.drop_database("monary_test")
     print("Database 'monary_test' removed.")
