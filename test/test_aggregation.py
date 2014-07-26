@@ -33,16 +33,10 @@ def teardown():
         c.drop_database("monary_test")
 
 
-def aggregate_monary_column(colname, coltype, pipeline=None):
-    pipeline = {"pipeline" : pipeline}
+def aggregate_monary_column(colname, coltype, pipeline, **kwargs):
     with monary.Monary("127.0.0.1") as m:
-        result = None
-        for block, in m.aggregate("monary_test", "data", pipeline, [colname],
-                                  [coltype]):
-            if result is None:
-                result = block
-            else:
-                result += block
+        result, = m.aggregate("monary_test", "data", pipeline, [colname],
+                              [coltype], **kwargs)
         return result
 
 
