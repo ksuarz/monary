@@ -5,6 +5,7 @@ import atexit
 import os.path
 import platform
 import sys
+from copy import deepcopy
 from ctypes import *
 
 PY3 = sys.version_info[0] >= 3
@@ -253,6 +254,18 @@ def get_full_query(query, sort=None, hint=None):
                 raise ValueError("hint arg must be string or list of (field, direction) pairs")
     
     return make_bson(query)
+
+def get_pipeline(pipeline):
+    """Manipulates the input pipeline into a usable form.
+    """
+    if isinstance(pipeline, list):
+        pipeline = {"pipeline" : pipeline}
+    elif isinstance(pipeline, dict):
+        if not "pipeline" in pipeline:
+            pipeline = {"pipeline" : [pipeline]}
+    else:
+        raise TypeError("Pipeline must be a dict or a list")
+
 
 class Monary(object):
     """Represents a 'monary' connection to a particular MongoDB server."""
@@ -538,21 +551,77 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def aggregate(self, db, coll, pipeline, fields, types,
-                  block_size=8192, limit=0):
+    def aggregate(self, db, coll, pipeline, fields, types):
         """Performs an aggregation operation.
 
-           There is no way to know in advance the size of the result set of an
-           aggregation command; therefore results are always returned TODO
+           :param: db: name of database
+           :param coll: name of collection on which to perform the aggregation
+           :param pipeline: a list of pipeline stages
+           :param fields: list of fields to be extracted from the result
+           :param types: corresponding list of field types
+            
+           :returns: list of numpy.ndarray, corresponding to the requested
+                     fields and types
+           :rtype: list
+        """
+        # Convert the pipeline to a usable form
+        pipeline = get_pipeline(pipeline)
+
+        # Determine sizing for array allocation
+        if not do_count and limit > 0:
+            # Limit ourselves to only the first ``count`` records.
+            count = limit
+        else:
+            # Use the aggregation pipeline to count the result size
+            count_stage = {"$group" : {"_id" : 1, "count" : {"$sum" : 1}}}
+            pipe_copy = deepcopy(pipeline)
+            pipe_copy["pipeline"].append(count_stage)
+
+            # Extract the count
+            result, = self.aggregate(db, coll, pipe_copy, ["count"], ["int64"],
+                                     limit=1, do_count=False)
+            result = result.compressed()
+            if len(result) == 0:
+                # The count returned was masked
+                raise RuntimeError("Failed to count the aggregation size")
+            else:
+                count = result[0]
+
+        if count > limit > 0:
+            count = limit
+
+        pipeline = get_plain_query(pipeline)
+        coldata = None
+        try:
+            coldata, colarrays = self._make_column_data(fields, types, count)
+            cursor = None
+            try:
+                collection = self._get_collection(db, coll)
+                if collection is None:
+                    raise ValueError("unable to get the collection")
+                cursor = cmonary.monary_init_aggregate(collection, pipeline, coldata)
+                cmonary.monary_load_query(cursor)
+            finally:
+                if cursor is not None:
+                    cmonary.monary_close_query(cursor)
+                if collection is not None:
+                    cmonary.monary_destroy_collection(collection)
+        finally:
+            if coldata is not None:
+                cmonary.monary_free_column_data(coldata)
+        return colarrays
+
+    def block_aggregate(self, db, coll, pipeline, fields, types,
+                        block_size=8192, limit=0):
+        """Performs an aggregation operation.
+
+           Perform an aggregation operation on a collection, returning the
+           results in blocks of size ``block_size``.
         """
         if block_size < 1:
-            raise ValueError("Block size must be a positive integer")
+            block_size = 1
 
-        if not isinstance(pipeline, (dict, list)):
-            raise TypeError("pipeline must be a dictionary or list")
-
-        if isinstance(pipeline, list):
-            pipeline = { "pipeline" : pipeline }
+        pipeline = self.get_pipeline(pipeline)
         pipeline = get_plain_query(pipeline)
 
         coldata = None
