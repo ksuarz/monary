@@ -590,7 +590,7 @@ class Monary(object):
         if count > limit > 0:
             count = limit
 
-        pipeline = get_plain_query(pipeline)
+        encoded_pipeline = get_plain_query(pipeline)
         coldata = None
         try:
             coldata, colarrays = self._make_column_data(fields, types, count)
@@ -599,7 +599,9 @@ class Monary(object):
                 collection = self._get_collection(db, coll)
                 if collection is None:
                     raise ValueError("unable to get the collection")
-                cursor = cmonary.monary_init_aggregate(collection, pipeline, coldata)
+                cursor = cmonary.monary_init_aggregate(collection,
+                                                       encoded_pipeline,
+                                                       coldata)
                 cmonary.monary_load_query(cursor)
             finally:
                 if cursor is not None:
@@ -622,24 +624,28 @@ class Monary(object):
             block_size = 1
 
         pipeline = self.get_pipeline(pipeline)
-        pipeline = get_plain_query(pipeline)
+        encoded_pipeline = get_plain_query(pipeline)
 
         coldata = None
         try:
-            coldata, colarrays = self._make_column_data(fields, types, block_size)
+            coldata, colarrays = self._make_column_data(fields,
+                                                        types,
+                                                        block_size)
             cursor = None
             try:
                 collection = self._get_collection(db, coll)
                 if collection is None:
                     raise ValueError("unable to get the collection")
-                cursor = cmonary.monary_init_aggregate(collection, pipeline, coldata)
+                cursor = cmonary.monary_init_aggregate(collection,
+                                                       encoded_pipeline,
+                                                       coldata)
 
                 while True:
                     num_rows = cmonary.monary_load_query(cursor)
                     if num_rows == block_size:
                         yield colarrays
                     elif num_rows > 0:
-                        yield [ arr[:num_rows] for arr in colarrays ]
+                        yield [arr[:num_rows] for arr in colarrays]
                         break
                     else:
                         break
