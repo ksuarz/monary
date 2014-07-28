@@ -56,7 +56,7 @@ FUNCDEFS = [
     "monary_destroy_collection:P:0",
     "monary_alloc_column_data:UU:P",
     "monary_free_column_data:P:I",
-    "monary_set_column_item:PUSUUPP:I",
+    "monary_set_column_item:PUSUPPP:I",
     "monary_query_count:PP:L",
     "monary_init_query:PUUPPI:P",
     "monary_load_query:P:I",
@@ -315,6 +315,7 @@ class Monary(object):
                                  "maximum of %d" % (field, MAX_COLUMNS))
 
             cmonary_type, cmonary_type_arg, numpy_type = get_monary_numpy_type(typename)
+            cmonary_type_arg = c_int(cmonary_type_arg)
 
             data = numpy.zeros([count], dtype=numpy_type)
             mask = numpy.ones([count], dtype=bool)
@@ -324,7 +325,8 @@ class Monary(object):
             data_p = data.ctypes.data_as(c_void_p)
             mask_p = mask.ctypes.data_as(c_void_p)
             cmonary.monary_set_column_item(coldata, i, field,
-                                           cmonary_type, cmonary_type_arg,
+                                           cmonary_type,
+                                           byref(cmonary_type_arg),
                                            data_p, mask_p)
 
         return coldata, colarrays

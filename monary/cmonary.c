@@ -143,8 +143,10 @@ void monary_destroy_collection(mongoc_collection_t* collection)
  *
  * @memb field The name of the field in the document.
  * @memb type The BSON type identifier, as specified by the Monary type enum.
- * @memb type_arg If type is binary, UTF-8, or document, type_arg specifies the
- * width of the field in bytes.
+ * @memb type_arg If type is binary, UTF-8, or document, type_arg points to an
+ * integer that specifies the width of the field in bytes. If type is an array,
+ * it should be a 0-terminated array of integers representing the dimensions of
+ * the array.
  * @memb storage A pointer to the location of the "array" in memory. In the
  * Python side of Monary, this points to the start of the NumPy array.
  * @memb mask A pointer to the the "masked array." This is the internal
@@ -156,7 +158,7 @@ typedef struct monary_column_item
 {
     char* field;
     unsigned int type;
-    unsigned int type_arg;
+    void* type_arg;
     void* storage;
     unsigned char* mask;
 } monary_column_item;
@@ -239,8 +241,10 @@ int monary_free_column_data(monary_column_data* coldata)
  * @param field The new name of the column item. Cannot exceed
  * MONARY_MAX_STRING_LENGTH characters in length.
  * @param type The new type of the item.
- * @param type_arg For UTF-8, binary and BSON types, specifies the size of the
- * data.
+ * @param type_arg For UTF-8, binary and BSON types, it should point to an
+ * integer that specifies the size of the data in bytes. For arrays, it should
+ * be a 0-terminated array of integers representing the shape of the NumPy
+ * array.
  * @param storage A pointer to the new location of the data in memory, which
  * cannot be NULL. Note that this does not free(3) the previous storage
  * pointer.
@@ -254,7 +258,7 @@ int monary_set_column_item(monary_column_data* coldata,
                            unsigned int colnum,
                            const char* field,
                            unsigned int type,
-                           unsigned int type_arg,
+                           void* type_arg,
                            void* storage,
                            unsigned char* mask)
 {
@@ -420,7 +424,7 @@ int monary_load_string_value(const bson_iter_t* bsonit,
     if (BSON_ITER_HOLDS_UTF8(bsonit)) {
         src = bson_iter_utf8(bsonit, &stringlen);
         stringlen++;
-        size = citem->type_arg;
+        size = *((unsigned int*) citem->type_arg);
         if (stringlen > size) {
             stringlen = size;
         }
@@ -447,7 +451,7 @@ int monary_load_binary_value(const bson_iter_t* bsonit,
         bson_iter_binary(bsonit, &subtype, &binary_len, &binary);
 
         // Size checking
-        size = citem->type_arg;
+        size = *((unsigned int*) citem->type_arg);
         if(binary_len > size) {
             binary_len = size;
         }
@@ -467,11 +471,13 @@ int monary_load_document_value(const bson_iter_t* bsonit,
     uint32_t document_len;      // The length of document in bytes.
     const uint8_t* document;    // Pointer to the immutable document buffer.
     uint8_t* dest;
+    int size;
 
     if (BSON_ITER_HOLDS_DOCUMENT(bsonit)) {
+        size = *((unsigned int*) citem->type_arg);
         bson_iter_document(bsonit, &document_len, &document);
-        if (document_len > citem->type_arg) {
-            document_len = citem->type_arg;
+        if (document_len > size) {
+            document_len = size;
         }
 
         dest = ((uint8_t*) citem->storage) + (idx * document_len);
