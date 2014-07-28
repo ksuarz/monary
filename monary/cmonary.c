@@ -627,8 +627,8 @@ int monary_bson_to_arrays(monary_column_data* coldata,
     bson_iter_t bsonit;
     bson_iter_t descendant;
     int i;
-    int success;
     int masked;
+    int success;
     monary_column_item* citem;
 
     if (!coldata || !bson_data) {
@@ -636,7 +636,7 @@ int monary_bson_to_arrays(monary_column_data* coldata,
         return -1;
     }
     if (row > coldata->num_rows) {
-        DEBUG("Tried to load row %d but exceeded max rows (%d)", row, coldata->num_rows);
+        DEBUG("Tried to load row %d, but that exceeds the maximum # of rows (%d) ", row, coldata->num_rows);
         return -1;
     }
 
