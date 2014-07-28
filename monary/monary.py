@@ -201,7 +201,7 @@ def mvoid_to_bson_id(mvoid):
 def get_ordering_dict(obj):
     """Converts a field/direction specification to an OrderedDict, suitable
        for BSON encoding.
-
+    
        :param obj: single field name or list of (field, direction) pairs
        :returns: mapping representing the field/direction list
        :rtype: OrderedDict
@@ -217,7 +217,7 @@ def get_ordering_dict(obj):
 
 def get_plain_query(query):
     """Composes a plain query from the given query object.
-
+    
        :param dict query: query dictionary (or None)
        :returns: BSON encoded query (byte string)
        :rtype: str
@@ -228,7 +228,7 @@ def get_plain_query(query):
 
 def get_full_query(query, sort=None, hint=None):
     """Composes a full query from the given query object, and sort and hint clauses, if provided.
-
+    
        :param dict query: query dictionary (or None)
        :param sort: (optional) single field name or list of (field, direction) pairs
        :param hint: (optional) single field name or list of (field, direction) pairs
@@ -250,16 +250,16 @@ def get_full_query(query, sort=None, hint=None):
                 query["$hint"] = get_ordering_dict(hint)
             except ValueError:
                 raise ValueError("hint arg must be string or list of (field, direction) pairs")
-
+    
     return make_bson(query)
 
 class Monary(object):
     """Represents a 'monary' connection to a particular MongoDB server."""
-
+    
     def __init__(self, host="localhost", port=27017, username=None,
                  password=None, database=None, options={}):
         """Initialize this connection with the given host and port.
-
+        
            :param host: either host name (or IP) to connect to, or full URI
            :param port: port number of running MongoDB service on host
            :param username: An optional username for authentication.
@@ -330,7 +330,7 @@ class Monary(object):
            :param fields: list of field names
            :param types: list of Monary type names
            :param count: size of storage to be allocated
-
+           
            :returns: (coldata, colarrays) where coldata is the cmonary
                      column data storage structure, and colarrays is a list of
                      numpy.ndarray instances
@@ -382,11 +382,11 @@ class Monary(object):
 
     def count(self, db, coll, query=None):
         """Count the number of records that will be returned by the given query.
-
+        
            :param db: name of database
            :param coll: name of the collection to be queried
            :param query: (optional) dictionary of Mongo query parameters
-
+           
            :returns: the number of records
            :rtype: int
         """
@@ -409,7 +409,7 @@ class Monary(object):
               limit=0, offset=0,
               do_count=True, select_fields=False):
         """Performs an array query.
-
+        
            :param db: name of database
            :param coll: name of the collection to be queried
            :param query: dictionary of Mongo query parameters
@@ -542,15 +542,15 @@ class Monary(object):
         if self._connection is not None:
             cmonary.monary_disconnect(self._connection)
             self._connection = None
-
+        
     def __enter__(self):
         """Monary connections meet the ContextManager protocol."""
         return self
-
+        
     def __exit__(self, *args):
         """Monary connections meet the ContextManager protocol."""
         self.close()
-
+        
     def __del__(self):
         """Closes the Monary connection and cleans up resources."""
         self.close()
