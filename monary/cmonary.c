@@ -574,11 +574,12 @@ break;
 
 int monary_load_item(const bson_iter_t* bsonit,
                      monary_column_item* citem,
+                     int type,
                      int offset)
 {
     int success = 0;
 
-    switch(citem->type) {
+    switch (type) {
         MONARY_DISPATCH_TYPE(TYPE_OBJECTID, monary_load_objectid_value)
         MONARY_DISPATCH_TYPE(TYPE_DATE, monary_load_datetime_value)
         MONARY_DISPATCH_TYPE(TYPE_TIMESTAMP, monary_load_timestamp_value)
@@ -669,7 +670,7 @@ int monary_bson_to_arrays(monary_column_data* coldata,
 
             // Load the item, whose type should match the storage specified
             if (strcmp(field, citem->field) == 0) {
-                success = monary_load_item(&bsonit, citem, row);
+                success = monary_load_item(&bsonit, citem, citem->type, row);
                 ++fields_found;
 
                 // Record success in the mask, if applicable
