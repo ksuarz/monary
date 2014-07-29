@@ -924,21 +924,33 @@ int monary_make_bson_value_t(bson_value_t* val,
     val->padding = 0;
     switch (citem->type) {
         MONARY_SET_BSON_VALUE(TYPE_BOOL, BSON_TYPE_BOOL, v_bool, bool, bool)
-        MONARY_SET_BSON_VALUE(TYPE_INT8, BSON_TYPE_INT32, v_int32, int8_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_INT16, BSON_TYPE_INT32, v_int32, int16_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_INT32, BSON_TYPE_INT32, v_int32, int32_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_INT64, BSON_TYPE_INT64, v_int64, int64_t, int64_t)
-        MONARY_SET_BSON_VALUE(TYPE_UINT8, BSON_TYPE_INT32, v_int32, uint8_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_UINT16, BSON_TYPE_INT32, v_int32, uint16_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_UINT32, BSON_TYPE_INT32, v_int32, uint32_t, int32_t)
-        MONARY_SET_BSON_VALUE(TYPE_UINT64, BSON_TYPE_INT64, v_int64, uint64_t, int64_t)
-        MONARY_SET_BSON_VALUE(TYPE_FLOAT32, BSON_TYPE_DOUBLE, v_double, float, double)
-        MONARY_SET_BSON_VALUE(TYPE_FLOAT64, BSON_TYPE_DOUBLE, v_double, double, double)
-        MONARY_SET_BSON_VALUE(TYPE_DATE, BSON_TYPE_DATE_TIME, v_datetime, int64_t, int64_t)
+        MONARY_SET_BSON_VALUE(TYPE_INT8, BSON_TYPE_INT32,
+                              v_int32, int8_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_INT16, BSON_TYPE_INT32,
+                              v_int32, int16_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_INT32, BSON_TYPE_INT32,
+                              v_int32, int32_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_INT64, BSON_TYPE_INT64,
+                              v_int64, int64_t, int64_t)
+        MONARY_SET_BSON_VALUE(TYPE_UINT8, BSON_TYPE_INT32,
+                              v_int32, uint8_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_UINT16, BSON_TYPE_INT32,
+                              v_int32, uint16_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_UINT32, BSON_TYPE_INT32,
+                              v_int32, uint32_t, int32_t)
+        MONARY_SET_BSON_VALUE(TYPE_UINT64, BSON_TYPE_INT64,
+                              v_int64, uint64_t, int64_t)
+        MONARY_SET_BSON_VALUE(TYPE_FLOAT32, BSON_TYPE_DOUBLE,
+                              v_double, float, double)
+        MONARY_SET_BSON_VALUE(TYPE_FLOAT64, BSON_TYPE_DOUBLE,
+                              v_double, double, double)
+        MONARY_SET_BSON_VALUE(TYPE_DATE, BSON_TYPE_DATE_TIME,
+                              v_datetime, int64_t, int64_t)
         case TYPE_OBJECTID:
             val->value_type = BSON_TYPE_OID;
             bson_oid_init_from_data(&(val->value.v_oid),
-                                    ((uint8_t*) citem->storage) + (idx * sizeof(bson_oid_t)));
+                                    ((uint8_t*) citem->storage) +
+                                     (idx * sizeof(bson_oid_t)));
             return 1;
             break;
         case TYPE_TIMESTAMP:
@@ -950,7 +962,8 @@ int monary_make_bson_value_t(bson_value_t* val,
         case TYPE_STRING:
             val->value_type = BSON_TYPE_UTF8;
             val->value.v_utf8.len = citem->type_arg;
-            val->value.v_utf8.str = ((char*) citem->storage) + (idx * citem->type_arg);
+            val->value.v_utf8.str = ((char*) citem->storage) +
+                                    (idx * citem->type_arg);
             return 1;
             break;
         default:
@@ -988,7 +1001,8 @@ int monary_bson_from_columns(monary_column_item* columns,
     int new_end;
 
     if (depth >= MONARY_MAX_RECURSION) {
-        DEBUG("Max recursive depth (%d) exceed on row: %d", MONARY_MAX_RECURSION, row);
+        DEBUG("Max recursive depth (%d) exceed on row: %d",
+              MONARY_MAX_RECURSION, row);
         return 0;
     }
     for (i = col_start; i < col_end; i++) {
@@ -999,24 +1013,29 @@ int monary_bson_from_columns(monary_column_item* columns,
             for (field = citem->field + name_offset;
                  *(field + dot_idx) && (field[dot_idx] != '.');
                  dot_idx++)
-            ;
+            ; // Advance dot_idx to either '.' or '\0'
             if (*(field + dot_idx)) {
                 for (new_end = i + 1;
                      new_end < col_end
                      && strlen((columns + new_end)->field) > name_offset + dot_idx
-                     && (strncmp(field, (columns + new_end)->field + name_offset, dot_idx) == 0);
+                     && (strncmp(field,
+                                 (columns + new_end)->field + name_offset,
+                                 dot_idx) == 0);
                      new_end++)
-                ;
-                bson_append_document_begin(parent, citem->field + name_offset, dot_idx, &child);
+                ; // Advance new_end so everything before has the same key
+                bson_append_document_begin(parent, citem->field + name_offset,
+                                           dot_idx, &child);
                 monary_bson_from_columns(columns, row, i, new_end, &child,
                                          name_offset + dot_idx + 1, depth + 1);
                 bson_append_document_end(parent, &child);
                 i = new_end - 1;
             } else {
                 if(monary_make_bson_value_t(&val, citem, row)) {
-                    bson_append_value(parent, citem->field + name_offset, dot_idx, &val);
+                    bson_append_value(parent, citem->field + name_offset,
+                                      dot_idx, &val);
                 } else {
-                    DEBUG("Insert does not support Monary type %d.", citem->type);
+                    DEBUG("Insert does not support Monary type %d.",
+                          citem->type);
                     return 0;
                 }
             }
@@ -1069,7 +1088,8 @@ int monary_insert(mongoc_collection_t* collection,
     base_len = 60; // TODO something like `bulk_op->commands.element_size;`
     data_len = 0;
 
-    DEBUG("Inserting %d documents with %d keys.", coldata->num_rows, coldata->num_columns);
+    DEBUG("Inserting %d documents with %d keys.",
+          coldata->num_rows, coldata->num_columns);
     for (row = 0; row <= coldata->num_rows; row++) {
         if ((row != coldata->num_rows) &&  // lazy and
             !monary_bson_from_columns(coldata->columns, row, 0,
@@ -1083,12 +1103,14 @@ int monary_insert(mongoc_collection_t* collection,
         if ((data_len + base_len + document.len > max_message_size) ||
             (row == coldata->num_rows)) {
             num_docs = row - num_inserted;
-            DEBUG("Inserting documents %d through %d, total data: %d", num_inserted + 1, row, data_len + base_len);
+            DEBUG("Inserting documents %d through %d, total data: %d",
+                  num_inserted + 1, row, data_len + base_len);
             if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
                 num_inserted += num_docs;
                 data_len = 0;
             } else {
-                DEBUG("Failed to insert documents %d through %d", num_inserted + 1, row);
+                DEBUG("Failed to insert documents %d through %d",
+                      num_inserted + 1, row);
                 if (error.message) {
                     DEBUG("Error message: %s", error.message);
                 }
@@ -1096,7 +1118,8 @@ int monary_insert(mongoc_collection_t* collection,
                 goto end;
             }
             mongoc_bulk_operation_destroy(bulk_op);
-            bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+            bulk_op = mongoc_collection_create_bulk_operation(collection,
+                                                              false, NULL);
             bson_reinit(&reply);
         }
 
