@@ -14,7 +14,7 @@ into MongoDB with Monary after processing it with Numpy.
 
 Monary inserts can also be used to store intermediate data in the middle of
 intense computations. This can be useful when doing operations on blocks of
-data with `block query <./block-query.html>`_.
+data with :doc:`block query </examples/block-query>`.
 
 Setup
 -----

@@ -15,5 +15,7 @@ started by issuing the following in a shell::
 
     query
     block-query
+    insert
     binary
     string
+    timestamp

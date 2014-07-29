@@ -1,5 +1,5 @@
-Strings
-=======
+Strings Example
+===============
 
 This example demonstrates how to extract strings with Monary.
 

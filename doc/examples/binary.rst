@@ -1,5 +1,5 @@
-Binary Data
-===========
+Binary Data Example
+===================
 
 This quick example shows you how to obtain blocks of binary data from MongoDB
 with Monary.
