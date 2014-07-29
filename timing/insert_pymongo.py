@@ -1,8 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
-import random
-
+import numpy.random as nprand
 import pymongo
 
 from profile import profile
@@ -18,22 +17,25 @@ BATCH_SIZE = 1000
 
 
 def do_insert():
-    c = pymongo.Connection("localhost")
+    c = pymongo.MongoClient("localhost")
     collection = c.monary_test.collection
 
-    with profile("insert"):
+    num_docs = NUM_BATCHES * BATCH_SIZE
+    arrays = [nprand.uniform(0, i + 1, num_docs) for i in xrange(5)]
+    with profile("pymongo insert"):
         for i in xrange(NUM_BATCHES):
-            stuff = [ ]
+            stuff = []
             for j in xrange(BATCH_SIZE):
-                record = dict(x1=random.uniform(0, 1),
-                              x2=random.uniform(0, 2),
-                              x3=random.uniform(0, 3),
-                              x4=random.uniform(0, 4),
-                              x5=random.uniform(0, 5)
-                         )
+                idx = i * BATCH_SIZE + j
+                record = dict(x1=arrays[0][idx],
+                              x2=arrays[1][idx],
+                              x3=arrays[2][idx],
+                              x4=arrays[3][idx],
+                              x5=arrays[4][idx]
+                              )
                 stuff.append(record)
             collection.insert(stuff)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     do_insert()
     print("Inserted %d records." % (NUM_BATCHES * BATCH_SIZE))

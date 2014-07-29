@@ -73,6 +73,7 @@ FUNCDEFS = [
     "monary_init_query:PUUPPI:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
+    "monary_insert:PPP:I"
 ]
 
 MAX_COLUMNS = 1024
@@ -95,7 +96,7 @@ atexit.register(cmonary.monary_cleanup)
 # Table of type names and conversions between cmonary and numpy types
 MONARY_TYPES = {
     # "common_name": (cmonary_type_code, numpy_type_object)
-    "id":        (1, "<V12"),
+    "id":        (1, numpy.dtype("<V12")),
     "bool":      (2, numpy.bool),
     "int8":      (3, numpy.int8),
     "int16":     (4, numpy.int16),
@@ -109,7 +110,7 @@ MONARY_TYPES = {
     "float64":   (12, numpy.float64),
     "date":      (13, numpy.int64),
     "timestamp": (14, numpy.uint64),
-    # The length argument here INCLUDES the null character
+    # Note, numpy strings do not need the null character
     "string":    (15, "S"),
     # Raw data (void pointer)
     "binary":    (16, "<V"),
@@ -156,7 +157,7 @@ def get_monary_numpy_type(orig_typename):
             raise ValueError("%r must have an explicit typearg with nonzero length "
                              "(use 'string:20', for example)" % type_name)
         type_num, numpy_type_code = MONARY_TYPES[type_name]
-        numpy_type = "%s%i" % (numpy_type_code, type_arg)
+        numpy_type = numpy.dtype("%s%i" % (numpy_type_code, type_arg))
     else:
         type_num, numpy_type = MONARY_TYPES[type_name]
     return type_num, type_arg, numpy_type
@@ -196,6 +197,30 @@ def mvoid_to_bson_id(mvoid):
     else:
         # Python 2.6 / 2.7
         return bson.ObjectId(str(mvoid))
+
+
+def validate_insert_fields(fields):
+    """Validate field names for insertion.
+
+       :param fields: a list of field names
+
+       :returns: None
+    """
+    if any(len(f) == 0 for f in fields):
+        raise ValueError("field names must not be empty")
+
+    if any(f.endswith(".") for f in fields):
+        raise ValueError("field names cannot end in '.'")
+
+    if any(fields[i] in fields[i + 1:]
+           for i in range(len(fields))):
+        raise ValueError("field names must all be unique")
+
+    if any(f1.startswith(f2) and f1[len(f2)] == '.'
+           for f1 in fields for f2 in fields
+           if f1 != f2):
+        raise ValueError("fields cannot be keys for both values "
+                         "and nested documents")
 
 
 def get_ordering_dict(obj):
@@ -536,6 +561,84 @@ class Monary(object):
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+
+    def insert(self, db, coll, data, fields, types=None):
+        """Performs an insertion of data from arrays.
+
+           :param db: name of database
+           :param coll: name of the collection to insert into
+           :param data: list of numpy masked arrays to be inserted
+           :param fields: list of fields to name the data to be inserted
+                          ..note:: fields will be sorted before insertion
+           :param types: (optional) corresponding list of field types
+
+           :returns: number of successful inserts
+           :rtype: int
+        """
+        if types is None:
+            types = [str(arr.data.dtype) for arr in data]
+        inserted = 0
+        supported_types = ["bool", "int8", "int16", "int32", "int64",
+                           "uint8", "uint16", "uint32", "uint64", "float32",
+                           "float64", "date", "id", "timestamp", "string"]
+
+        if len(data) != len(fields) or len(fields) != len(types):
+            raise ValueError("fields, types, and data must all be the "
+                             "same length")
+        if len(fields) == 0:
+            return 0
+
+        validate_insert_fields(fields)
+
+        zipped = sorted(zip(fields, types, data), key=lambda x: x[0])
+        fields = [x[0] for x in zipped]
+        types = [x[1] for x in zipped]
+        data = [x[2] for x in zipped]
+
+        if any(t.split(":")[0] not in supported_types for t in types):
+            unsupported = [t for t in types if t not in supported_types]
+            plural = "s" if len(unsupported) > 1 else ""
+            raise NotImplementedError("cannot insert type%s"
+                                      ": %r" % (plural, unsupported))
+
+        if len(set(len(x) for x in data)) != 1:
+            raise ValueError("all given arrays must be of the same length")
+
+        collection = None
+        try:
+            coldata = cmonary.monary_alloc_column_data(len(data), len(data[0]))
+            for i, arr in enumerate(data):
+                cmonary_type, cmonary_type_arg, numpy_type = \
+                    get_monary_numpy_type(types[i])
+
+                if arr.data.dtype != numpy_type:
+                    raise ValueError("error, wrong type specified. Given:"
+                                     " %r Expected: %r"
+                                     "" % (arr.data.dtype, numpy_type))
+
+                data_p = arr.data.ctypes.data_as(c_void_p)
+                mask_p = arr.mask.ctypes.data_as(c_void_p)
+                cmonary.monary_set_column_item(coldata, i,
+                                               fields[i].encode("ascii"),
+                                               cmonary_type, cmonary_type_arg,
+                                               data_p, mask_p)
+
+            collection = self._get_collection(db, coll)
+            if collection is None:
+                raise ValueError("unable to get the collection")
+
+            inserted = cmonary.monary_insert(collection, coldata,
+                                             self._connection)
+
+            if inserted < 0:
+                raise RuntimeError("insert failed after inserting %d "
+                                   "documents" % abs(inserted))
+        finally:
+            if coldata is not None:
+                cmonary.monary_free_column_data(coldata)
+            if collection is not None:
+                cmonary.monary_destroy_collection(collection)
+        return inserted
 
     def close(self):
         """Closes the current connection, if any."""
