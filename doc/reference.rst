@@ -27,11 +27,11 @@ BSON Types
 ----------
 Integers
 ........
-The `BSON specification`_ only stores signed 32- and 64-bit integers. Specifying
-an unsigned integer or an integer size of 8- or 16-bits causes a cast. Casting a
-negative number to an unsigned integer or casting to a smaller integer size with
-overflow is implementation-defined, depending on the C compiler for your
-platform.
+The `BSON specification`_ only stores signed 32- and 64-bit integers.
+Specifying an unsigned integer or an integer size of 8- or 16-bits causes a
+cast. Casting a negative number to an unsigned integer or casting to a smaller
+integer size with overflow is implementation-defined, depending on the C
+compiler for your platform.
 
 Floating-point numbers can be cast to integers. In the case of overflow, the
 result is undefined.
@@ -50,8 +50,8 @@ Datetimes
 .........
 This datetime is a 64-bit integer representing milliseconds since the epoch,
 which is January 1, 1970. Dates before the epoch are expressed as negative
-milliseconds. Monary provides helper functions for converting MongoDB dates into
-Python datetime objects.
+milliseconds. Monary provides helper functions for converting MongoDB dates
+into Python datetime objects.
 
 Timestamps
 ..........
@@ -84,8 +84,8 @@ Monary-Specific Types
 Type
 ....
 "Type" refers to a field's BSON type code. For integers, the type code returned
-will be either an int32 (type code 16) or int64 (type code 18), depending on how
-it is stored in MongoDB.
+will be either an int32 (type code 16) or int64 (type code 18), depending on
+how it is stored in MongoDB.
 
 Here is a list of selected type codes, as per the specification:
 
@@ -107,13 +107,13 @@ Here is a list of selected type codes, as per the specification:
 
 Size
 ....
-For UTF-8 strings, JavaScript code, binary values, BSON subdocuments and arrays,
-"size" is defined as the size of the object in bytes. All other types do not
-have a defined Monary size.
+For UTF-8 strings, JavaScript code, binary values, BSON subdocuments, and
+arrays, "size" is defined as the size of the object in bytes. All other types
+do not have a defined Monary size.
 
 Length
 ......
-For UTF-8 strings and Javascript code, "length" refers to the string length (not
-including the terminating NUL character); for arrays, the number of elements;
-and for subdocuments, the number of key-value pairs. No other types have a
-defined Monary length.
+For UTF-8 strings and Javascript code, "length" refers to the string length
+(not including the terminating NUL character); for arrays, the number of
+elements; and for subdocuments, the number of key-value pairs. No other types
+have a defined Monary length.

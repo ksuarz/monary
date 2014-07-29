@@ -3,14 +3,6 @@ Frequently Asked Questions
 
 .. contents::
 
-.. _monary-inserts:
-
-Can Monary insert documents into MongoDB?
------------------------------------------
-Though there may be support for bulk inserts from arrays into MongoDB in the
-future, for now Monary can only retrieve data. It cannot perform any inserts. In
-the meantime, use `PyMongo <http://api.mongodb.org/python/current/>`_.
-
 .. _masked-values:
 
 Why does my array contain masked values?
@@ -39,7 +31,7 @@ Because there is a type mismatch for the field "a", some values will be masked
 depending on what type the query asks for::
 
     >>> import monary
-    >>> m = monary.Monary("localhost")
+    >>> m = monary.Monary()
     >>> m.query("test", "foo", {}, ["a"], ["int32"], sort="sequence")
     [masked_array(data = [1 --],
                  mask = [False  True],
@@ -60,7 +52,7 @@ the same collection can have fields of different types. To infer the type of
 data for a certain field name, specify the type of "type"::
 
     >>> import monary
-    >>> m = monary.Monary("localhost")
+    >>> m = monary.Monary()
     >>> m.query("test", "foo", {}, ["a"], ["type"])
     [masked_array(data = [16 2]
                  mask = [False False],
@@ -100,13 +92,15 @@ of the sizes of strings you are expecting to receive.
 
 When should I use a block query?
 --------------------------------
-Block query can be used to read through lots of documents while only viewing
-only a specified amount of documents at a time. This can save memory and
-decrease initial latency by processing documents in batches.
+Block query can be used to read through many documents while only storing a
+specified amount of documents in memory at a time. This can save memory and
+decrease initial latency by processing documents in batches. This can also be
+used in combination with insert to perform operations on all of your data and
+store the processed results in a new collection.
 
 .. seealso::
 
-    The :doc:`examples/block-query` for how to use block query.
+    :doc:`examples/block-query` and :doc:`examples/insert`
 
 .. _integer-double-type-code:
 
@@ -117,6 +111,7 @@ doubles. This most commonly happens at the mongo shell:
 
 .. code-block:: javascript
 
+    > use test
     > db.foo.insert({ a : 1 })
     WriteResult({ "nInserted" : 1 })
 
@@ -134,6 +129,7 @@ integers into MongoDB, use ``NumberInt``:
 
 .. code-block:: javascript
 
+    > use test
     > db.foo.insert({ b : NumberInt(1) })
     WriteResult({ "nInserted" : 1 })
 
@@ -144,3 +140,7 @@ This yields the expected type code::
                  mask = [False],
            fill_value = N/A)
     ]
+
+.. seealso::
+
+    `ECMAScript Number Type <Javahttp://bclary.com/2004/11/07/#a-4.3.20>`_

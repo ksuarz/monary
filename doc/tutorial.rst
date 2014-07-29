@@ -9,7 +9,7 @@ Python shell, the following should run without raising an exception::
     >>> import monary
 
 You'll also need a MongoDB instance running on the default host and port
-(typically `localhost:27017`). If you have `downloaded and installed
+(``localhost:27017``). If you have `downloaded and installed
 <http://www.mongodb/org/display/DOCS/Getting+Started>`_ MongoDB, you can start
 the mongo daemon in your system shell:
 
@@ -68,7 +68,7 @@ Each document looks something like this:
 To retrieve all of the ``b`` values with Monary, we use the ``query()`` function
 and specify the field name we want and its type.::
 
-    >>> with Monary("localhost") as m:
+    >>> with Monary() as m:
     ...     arrays = m.query("test", "collection", {}, ["b"], ["int32"])
 
 ``arrays`` is now a list containing a NumPy `masked array
