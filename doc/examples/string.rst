@@ -16,7 +16,8 @@ Then, we can insert random strings of your choosing::
     >>> import random
     >>> import string
     >>> def rand_str(length):
-    ...     return "".join(random.choice(string.lowercase) for c in range(0, length))
+    ...     return "".join(random.choice(string.lowercase)
+    ...                    for c in range(0, length))
     ...
     >>> for i in range(0, 100):
     ...     s = rand_str(random.choice(range(1, 10)))
@@ -73,12 +74,13 @@ string or Unicode object, take its length and add one for the terminating
 
 Performing Queries
 ..................
-If we don't know the maximum size of the strings in advance, we can query for
-their size, which returns the size of the strings in bytes::
+If we don't know the maximum size of the strings in advance, we can
+:doc:`query </examples/query>` for their size, which returns the size of the
+strings in bytes::
 
     >>> from monary import Monary
     >>> m = Monary()
-    >>> [sizes] = m.query("test", "data", {}, ["stringdata"], ["size"])
+    >>> sizes, = m.query("test", "data", {}, ["stringdata"], ["size"])
     >>> sizes
     masked_array(data = [10L 8L 4L ..., 7L 6L 10L],
                  mask = [False False False ... False False False],
@@ -87,7 +89,7 @@ their size, which returns the size of the strings in bytes::
 If instead you are interested in the character lengths of the strings, you can
 specify for the length. For ASCII characters, this is one less than the size::
 
-    >>> [lengths] = m.query("test", "data", {}, ["stringdata"], ["length"])
+    >>> lengths, = m.query("test", "data", {}, ["stringdata"], ["length"])
     >>> lengths
     masked_array(data = [9L 7L 3L ...,, 6L 5L 9L],
                  mask = [False False False ..., False False False],
@@ -101,7 +103,8 @@ size::
 
 Finally, we can use this size to obtain the actual strings from MongoDB::
 
-    >>> [data] = m.query("test", "data", {}, ["stringdata"], ["string:%d" % max_size])
+    >>> data, = m.query("test", "data", {}, ["stringdata"],
+    ...                 ["string:%d" % max_size])
     >>> data
     masked_array(data = ['nbuvggamk' 'bkhwkwl' 'tvb' ..., 'rsdefd' 'lpasx' 'wpdlxierd'],
                  mask = [False False False ..., False False False],
@@ -115,8 +118,9 @@ regular Python string if you'd like::
 If you have non-ASCII UTF-8 characters in this data, create a Unicode object
 instead with the proper encoding::
 
-    >>> [sizes] = m.query("test", "utf8", {}, ["stringdata"], ["size"])
-    >>> [data] = m.query("test", "utf8", {}, ["stringdata"], ["string:%d" % numpy.amax(sizes)])
+    >>> sizes, = m.query("test", "utf8", {}, ["stringdata"], ["size"])
+    >>> data, = m.query("test", "utf8", {}, ["stringdata"],
+    ...                 ["string:%d" % numpy.amax(sizes)])
     >>> mystr = unicode(data[0], "utf-8")
     >>> mystr
     u'libert\xe9'
