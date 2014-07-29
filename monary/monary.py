@@ -596,7 +596,8 @@ class Monary(object):
         data = [x[2] for x in zipped]
 
         if any(t.split(":")[0] not in supported_types for t in types):
-            unsupported = [t for t in types if t not in supported_types]
+            unsupported = [t for t in types
+                           if t.split(":")[0] not in supported_types]
             plural = "s" if len(unsupported) > 1 else ""
             raise NotImplementedError("cannot insert type%s"
                                       ": %r" % (plural, unsupported))
