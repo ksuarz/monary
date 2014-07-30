@@ -581,7 +581,7 @@ class Monary(object):
         supported_types = ["bool", "int8", "int16", "int32", "int64",
                            "uint8", "uint16", "uint32", "uint64", "float32",
                            "float64", "date", "id", "timestamp", "string",
-                           "binary"]
+                           "binary", "bson"]
 
         if len(data) != len(fields) or len(fields) != len(types):
             raise ValueError("fields, types, and data must all be the "
@@ -600,8 +600,8 @@ class Monary(object):
             unsupported = [t for t in types
                            if t.split(":")[0] not in supported_types]
             plural = "s" if len(unsupported) > 1 else ""
-            raise NotImplementedError("cannot insert type%s"
-                                      ": %r" % (plural, unsupported))
+            raise NotImplementedError("cannot insert type%s: %s"
+                                      "" % (plural, ", ".join(unsupported)))
 
         if len(set(len(x) for x in data)) != 1:
             raise ValueError("all given arrays must be of the same length")

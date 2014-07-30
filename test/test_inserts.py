@@ -331,6 +331,31 @@ def test_retrieve_nested():
     teardown()
 
 
+def test_insert_bson():
+    docs = []
+    for i in NTR():
+        doc = {"subdoc": {"num": random.randint(0, 255)}}
+        if i % 2 == 0:
+            doc["subdoc"]["bool"] = bool(random.getrandbits(1))
+        if i % 3 == 0:
+            doc["float"] = random.uniform(-1e30, 1e30)
+        docs.append(doc)
+    encoded = [bson.BSON.encode(doc) for doc in docs]
+    max_len = max(map(len, encoded))
+    encoded = ma.masked_array(encoded, np.zeros(NUM_TEST_RECORDS),
+                              "<V%d" % max_len)
+    with monary.Monary() as m:
+        m.insert("monary_test", "data", [encoded, seq],
+                 ["doc", "sequence"],
+                 ["bson:%d" % max_len, "int64"])
+    with pymongo.MongoClient() as c:
+        col = c.monary_test.data
+        for i, doc in enumerate(col.find().sort(
+                [("sequence", pymongo.ASCENDING)])):
+            assert doc["sequence"] == i
+            assert doc["subdoc"] == docs[i]
+
+
 def teardown():
     with pymongo.MongoClient() as c:
         c.drop_database("monary_test")  # ensure that database does not exist

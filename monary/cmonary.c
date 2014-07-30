@@ -974,6 +974,20 @@ int monary_make_bson_value_t(bson_value_t* val,
                                        (idx * citem->type_arg);
             return 1;
             break;
+        case TYPE_BSON:
+            if (*((uint32_t*) citem->storage) > citem->type_arg) {
+                DEBUG("Error: bson length greater than array width in "
+                      "row %d", row);
+                return 0;
+            }
+            if (*((uint32_t*) citem->storage) < 5) {
+                DEBUG("Error: poorly formatted bson in row %d", row);
+                return 0;
+            }
+            val->value_type = BSON_TYPE_DOCUMENT;
+            val->value.v_doc.data_len = *((uint32_t*) citem->storage);
+            val->value.v_doc.data = ((uint8_t*) citem->storage) +
+                                    (idx * citem->type_arg);
         default:
             DEBUG("Unsupported type %d", citem->type);
             return 0;
