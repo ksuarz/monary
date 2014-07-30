@@ -2,6 +2,7 @@
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
 import datetime
+import os
 import random
 import string
 import sys
@@ -15,8 +16,26 @@ import pymongo
 import monary
 from monary.monary import mvoid_to_bson_id, validate_insert_fields
 
+PY3 = sys.version_info[0] >= 3
+
 NUM_TEST_RECORDS = 14000
 ARRAYS = None
+bool_arr = None
+int8_arr = None
+int16_arr = None
+int32_arr = None
+int64_arr = None
+uint8_arr = None
+uint16_arr = None
+uint32_arr = None
+uint64_arr = None
+float32_arr = None
+float64_arr = None
+timestamp_arr = None
+date_arr = None
+string_arr = None
+bin_arr = None
+seq = None
 
 
 def NTR():
@@ -54,7 +73,9 @@ def random_string(str_len):
 
 
 def setup():
-    global ARRAYS
+    global ARRAYS, bool_arr, int8_arr, int16_arr, int32_arr, int64_arr
+    global uint8_arr, uint16_arr, uint32_arr, uint64_arr, float32_arr
+    global float64_arr, timestamp_arr, date_arr, string_arr, bin_arr, seq
     with pymongo.MongoClient() as c:
         c.drop_database("monary_test")  # ensure that database does not exist
     random.seed(1234)  # for reproducibility
@@ -111,6 +132,9 @@ def setup():
     # string
     string_arr = make_ma([random_string(10) for _ in NTR()], "S10")
     ARRAYS.append(string_arr)
+    # binary
+    bin_arr = make_ma([os.urandom(20) for _ in NTR()], "<V20")
+    ARRAYS.append(bin_arr)
     # sequence for sorting
     seq = ma.masked_array(list(NTR()), np.zeros(NUM_TEST_RECORDS),
                           dtype="int64")
@@ -120,7 +144,7 @@ def setup():
 def test_insert_no_types():
     with monary.Monary() as m:
         # Dates and timestamps can't be defaulted properly
-        inserted = m.insert("monary_test", "data", ARRAYS[:-4],
+        inserted = m.insert("monary_test", "data", ARRAYS[:-5],
                             ["bool", "int8", "int16", "int32", "int64",
                              "uint8", "uint16", "uint32", "uint64", "float32",
                              "float64"])
@@ -133,17 +157,19 @@ def test_insert():
         inserted = m.insert("monary_test", "data", ARRAYS[:-1],
                             ["bool", "int8", "int16", "int32", "int64",
                              "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64", "timestamp", "date", "string"],
+                             "float64", "timestamp", "date", "string",
+                             "binary"],
                             ["bool", "int8", "int16", "int32", "int64",
                              "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64", "timestamp", "date", "string:10"])
+                             "float64", "timestamp", "date", "string:10",
+                             "binary:20"])
         assert inserted == NUM_TEST_RECORDS
         teardown()
 
 
 def test_retrieve_no_types():
     with monary.Monary() as m:
-        m.insert("monary_test", "data", ARRAYS[:-4] + [ARRAYS[-1]],
+        m.insert("monary_test", "data", ARRAYS[:-5] + [seq],
                  ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                   "x9", "x10", "x11", "sequence"])
     with monary.Monary() as m:
@@ -153,7 +179,7 @@ def test_retrieve_no_types():
                             ["bool", "int8", "int16", "int32", "int64",
                              "uint8", "uint16", "uint32", "uint64", "float32",
                              "float64"], sort="sequence")
-        for data, expected in zip(retrieved, ARRAYS):
+        for data, expected in zip(retrieved, ARRAYS[:-5]):
             assert data.count() == expected.count()
             assert (data == expected).all()
     teardown()
@@ -163,21 +189,36 @@ def test_retrieve():
     with monary.Monary() as m:
         m.insert("monary_test", "data", ARRAYS,
                  ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                  "x9", "x10", "x11", "x12", "x13", "x14", "sequence"],
+                  "x9", "x10", "x11", "x12", "x13", "x14", "x15", "sequence"],
                  ["bool", "int8", "int16", "int32", "int64",
                   "uint8", "uint16", "uint32", "uint64", "float32",
-                  "float64", "timestamp", "date", "string:10", "int64"])
+                  "float64", "timestamp", "date", "string:10",
+                  "binary:20", "int64"])
     with monary.Monary() as m:
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                             "x9", "x10", "x11", "x12", "x13", "x14",
+                             "x9", "x10", "x11", "x12", "x13", "x14", "x15",
                              "sequence"],
                             ["bool", "int8", "int16", "int32", "int64",
                              "uint8", "uint16", "uint32", "uint64", "float32",
                              "float64", "timestamp", "date", "string:10",
-                             "int64"], sort="sequence")
+                             "binary:20", "int64"], sort="sequence")
         for data, expected in zip(retrieved, ARRAYS):
             assert data.count() == expected.count()
+            if("V" in str(data.dtype)):
+                # need to convery binary data
+                fun = str
+                if PY3:
+                    fun = bytes
+                data = [fun(data[i])
+                        for i in range(len(data))
+                        if not data.mask[i]]
+                expected = [fun(expected[i])
+                        for i in range(len(expected))
+                        if not expected.mask[i]]
+                # make np.arrays so .all() still works
+                data = np.array([data == expected])
+                expected = np.array([True])
             assert (data == expected).all()
     teardown()
 
@@ -185,7 +226,7 @@ def test_retrieve():
 def test_oid():
     # Insert documents to generate oid's
     with monary.Monary() as m:
-        m.insert("monary_test", "data", [ARRAYS[0], ARRAYS[-1]],
+        m.insert("monary_test", "data", [bool_arr, seq],
                  ["dummy", "sequence"])
     # Get back the id's and test inserting them
     with monary.Monary() as m:
@@ -237,7 +278,6 @@ def test_insert_field_validation():
 
 
 def test_nested_insert():
-    seq = ARRAYS[-1]
     squares = np.arange(NUM_TEST_RECORDS) ** 2
     squares = ma.masked_array(squares, np.zeros(NUM_TEST_RECORDS),
                               dtype="float64")
@@ -265,7 +305,8 @@ def test_nested_insert():
 
 
 def test_retrieve_nested():
-    arrays = ARRAYS[:5] + ARRAYS[9:11] + ARRAYS[-2:]
+    arrays = [bool_arr, int8_arr, int16_arr, int32_arr, int64_arr, float32_arr,
+              float64_arr, string_arr, seq]
     with monary.Monary() as m:
         m.insert("monary_test", "data", arrays,
                  ["a.b.c.d.e.f.g.h.x1", "a.b.c.d.e.f.g.h.x2",
@@ -285,7 +326,7 @@ def test_retrieve_nested():
                     data = arrays[j][i]
                     exp = doc["a"]["b"]["c"]["d"]["e"]["f"]["g"]["h"]
                     exp = exp["x" + str(j + 1)]
-                    if sys.version_info[0] >= 3 and isinstance(data, bytes):
+                    if PY3 and isinstance(data, bytes):
                         data = data.decode("ascii")
     teardown()
 

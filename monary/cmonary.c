@@ -966,6 +966,14 @@ int monary_make_bson_value_t(bson_value_t* val,
                                     (idx * citem->type_arg);
             return 1;
             break;
+        case TYPE_BINARY:
+            val->value_type = BSON_TYPE_BINARY;
+            val->value.v_binary.subtype = BSON_SUBTYPE_BINARY;
+            val->value.v_binary.data_len = citem->type_arg;
+            val->value.v_binary.data = ((uint8_t*) citem->storage) +
+                                       (idx * citem->type_arg);
+            return 1;
+            break;
         default:
             DEBUG("Unsupported type %d", citem->type);
             return 0;
@@ -1098,7 +1106,6 @@ int monary_insert(mongoc_collection_t* collection,
             num_inserted *= -1;
             goto end;
         }
-
 
         if ((data_len + base_len + document.len > max_message_size) ||
             (row == coldata->num_rows)) {

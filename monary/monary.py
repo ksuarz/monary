@@ -580,7 +580,8 @@ class Monary(object):
         inserted = 0
         supported_types = ["bool", "int8", "int16", "int32", "int64",
                            "uint8", "uint16", "uint32", "uint64", "float32",
-                           "float64", "date", "id", "timestamp", "string"]
+                           "float64", "date", "id", "timestamp", "string",
+                           "binary"]
 
         if len(data) != len(fields) or len(fields) != len(types):
             raise ValueError("fields, types, and data must all be the "
