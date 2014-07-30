@@ -287,6 +287,54 @@ int monary_set_column_item(monary_column_data* coldata,
     return 1;
 }
 
+/**
+ * Recursively loads an array into memory. This functions differently from the
+ * rest of the data loader functions.
+ *
+ * @param bsonit A bson_iter_t iterating over the data retrieved from MongoDB.
+ * @param citem A pointer to the array data.
+ * @param idx The row of the result array to load into.
+ * @param dims A 0-terminated array of integers representing the dimensions of
+ * the array.
+ *
+ * @returns The **total** number of ..... TODO
+ */
+int monary_load_array_value(const bson_iter_t* bsonit,
+                            monary_column_item* citem,
+                            int idx,
+                            unsigned int* dims)
+{
+    /* Preconditions: none of the in variables are NULL */
+    int i;
+    bson_iter_t child;
+
+    if (dims[0] == 0) {
+        return 0;
+    }
+
+    if (BSON_ITER_HOLDS_ARRAY(bsonit)) {
+        if (!bson_iter_recurse(iter, &child)) {
+            DEBUG("%s", "failed to recurse into array while loading");
+            return 0;
+        }
+
+        for (i = 0; i < *dims; i++, bson_iter_next(&child)) {
+            /* TODO: idx */
+            /* TODO: Return values - some are discarded */
+            if (dims[1] == 0) {
+                /* Last dimension - load actual values */
+                monary_load_item(&child, citem, citem->subtype, idx + i);
+            } else {
+                /* Recursive steps */
+                monary_load_array_value(&child, citem, idx + i, dims + 1);
+            }
+        }
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 int monary_load_objectid_value(const bson_iter_t* bsonit,
                                monary_column_item* citem,
                                int idx)
