@@ -359,6 +359,35 @@ def test_insert_bson():
     teardown()
 
 
+def test_custom_id():
+    id_seq = None
+    id_float = None
+    f_unmasked = ma.masked_array(float64_arr.data,
+                                 np.zeros(NUM_TEST_RECORDS))
+    with monary.Monary() as m:
+        id_seq = m.insert("monary_test", "data",
+                          [int16_arr, seq], ["num", "_id"])
+        assert len(id_seq) == NUM_TEST_RECORDS
+        assert (id_seq == seq.data).all()
+        # NOTE: This assumes unique values for all random floats.
+        id_float = m.insert("monary_test", "data",
+                            [seq, date_arr, f_unmasked],
+                            ["sequence", "x.date", "_id"],
+                            ["int64", "date", "float64"])
+        assert len(id_float) == NUM_TEST_RECORDS
+        assert (id_float == f_unmasked.data).all()
+    with monary.Monary() as m:
+        data, = m.query("monary_test", "data", {"_id": {"$type": 18}},
+                        ["_id"], ["int64"], sort="_id")
+        assert len(data) == data.count() == NUM_TEST_RECORDS
+        assert (data == seq).all()
+        data, = m.query("monary_test", "data", {"_id": {"$type": 1}},
+                        ["_id"], ["float64"], sort="sequence")
+        assert len(data) == data.count() == NUM_TEST_RECORDS
+        assert (data == f_unmasked).all()
+    teardown()
+
+
 def teardown():
     with pymongo.MongoClient() as c:
         c.drop_database("monary_test")

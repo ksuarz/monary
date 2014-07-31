@@ -206,9 +206,6 @@ def validate_insert_fields(fields):
 
        :returns: None
     """
-    if "_id" in fields:
-        raise ValueError("cannot specify _id")
-
     if any(len(f) == 0 for f in fields):
         raise ValueError("field names must not be empty")
 
@@ -593,6 +590,10 @@ class Monary(object):
             return ids
 
         validate_insert_fields(fields)
+        if "_id" in fields:
+            idx = fields.index("_id")
+            if data[idx].mask.any():
+                raise ValueError("custom _ids must be fully unmasked")
 
         zipped = sorted(zip(fields, types, data),
                         key=lambda x: x[0] if x != "_id" else " ")
