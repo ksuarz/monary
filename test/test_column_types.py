@@ -57,21 +57,21 @@ def setup():
                                                 milliseconds=random.randint(0, 1000))),
                     timestampval=bson.timestamp.Timestamp(time=random.randint(0,1000000),
                                                           inc=random.randint(0,1000000)),
-                    stringval="".join(chr(ord('A') + random.randint(0, 25))
-                                      for i in xrange(random.randint(1, 5))),
+                    stringval="".join(chr(ord('A') + random.randint(0,25))
+                                        for i in xrange(random.randint(1,5))),
                     binaryval=bson.binary.Binary(binary),
-                    intlistval=[ random.randint(0, 100) for i in xrange(random.randint(1, 5)) ],
+                    intlistval=[ random.randint(0, 100) for i in xrange(random.randint(1,5)) ],
                     subdocumentval=dict(subkey=random.randint(0, 255))
                 )
         records.append(record)
     coll.insert(records, safe=True)
     RECORDS = records
-
+    print("setup complete")
 
 def teardown():
     c = get_pymongo_connection()
     c.drop_database("monary_test")
-
+    print("teardown complete")
 
 def get_record_values(colname):
     return [ r[colname] for r in RECORDS ]
@@ -151,18 +151,10 @@ def list_to_bsonable_dict(values):
     return OrderedDict((str(i), val) for i, val in enumerate(values))
 
 def test_bson_column():
-    size = get_monary_column("subdocumentval", "size")[0]
+    size = max(get_monary_column("subdocumentval", "size"))
     rawdata = get_monary_column("subdocumentval", "bson:%d" % size)
-    if PY3:
-        # Python 3
-        data = [bytes(x.data.data) for x in rawdata]
-        expected = [bytes(bson.BSON.encode(record))
-                    for record in get_record_values("subdocumentval")]
-    else:
-        # Python 2.6 / 2.7
-        data = ["".join(c for c in x.data.data) for x in rawdata]
-        expected = ["".join(c for c in bson.BSON.encode(record))
-                    for record in get_record_values("subdocumentval")]
+    expected = get_record_values("subdocumentval")
+    data = [bson.BSON(x).decode() for x in rawdata]
     assert data == expected
 
 def test_type_column():

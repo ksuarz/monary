@@ -33,11 +33,13 @@ def setup():
                 r['x'] = 3
             records.append(r)
         coll.insert(records, safe=True)
+        print("setup complete")
 
 
 def teardown():
     c = get_pymongo_connection()
     c.drop_database("monary_test")
+    print("teardown complete")
 
 
 def get_monary_column(colname, coltype):
