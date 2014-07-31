@@ -266,7 +266,7 @@ int monary_set_column_item(monary_column_data* coldata,
     if(colnum >= coldata->num_columns) { return 0; }
     if(type == TYPE_UNDEFINED || type > LAST_TYPE) { return 0; }
     if(storage == NULL) { return 0; }
-    if(mask == NULL) { return 0; }
+    // if(mask == NULL) { return 0; }
     
     len = strlen(field);
     if(len > MONARY_MAX_STRING_LENGTH) { return 0; }
@@ -906,7 +906,8 @@ void monary_close_query(monary_cursor* cursor)
 case TYPENAME:                                                                   \
 val->value_type = BTYPENAME;                                                     \
 val->value.VKEY = (CAST_TYPE) *(((STORED_TYPE *) citem->storage) + idx);         \
-return 1;
+success = 1;                                                                     \
+break;
 
 /**
  * Create a bson_value_t from the given monary column and row
@@ -921,6 +922,8 @@ int monary_make_bson_value_t(bson_value_t* val,
                              monary_column_item* citem,
                              int idx)
 {
+    uint32_t len;
+    int success = 0;
     val->padding = 0;
     switch (citem->type) {
         MONARY_SET_BSON_VALUE(TYPE_BOOL, BSON_TYPE_BOOL, v_bool, bool, bool)
@@ -951,20 +954,20 @@ int monary_make_bson_value_t(bson_value_t* val,
             bson_oid_init_from_data(&(val->value.v_oid),
                                     ((uint8_t*) citem->storage) +
                                      (idx * sizeof(bson_oid_t)));
-            return 1;
+            success = 1;
             break;
         case TYPE_TIMESTAMP:
             val->value_type = BSON_TYPE_TIMESTAMP;
             val->value.v_timestamp.timestamp = ((uint32_t*) citem->storage)[2 * idx];
             val->value.v_timestamp.increment = ((uint32_t*) citem->storage)[(2 * idx) + 1];;
-            return 1;
+            success = 1;
             break;
         case TYPE_STRING:
             val->value_type = BSON_TYPE_UTF8;
             val->value.v_utf8.len = citem->type_arg;
             val->value.v_utf8.str = ((char*) citem->storage) +
                                     (idx * citem->type_arg);
-            return 1;
+            success = 1;
             break;
         case TYPE_BINARY:
             val->value_type = BSON_TYPE_BINARY;
@@ -972,26 +975,30 @@ int monary_make_bson_value_t(bson_value_t* val,
             val->value.v_binary.data_len = citem->type_arg;
             val->value.v_binary.data = ((uint8_t*) citem->storage) +
                                        (idx * citem->type_arg);
-            return 1;
+            success = 1;
             break;
         case TYPE_BSON:
-            if (*((uint32_t*) citem->storage) > citem->type_arg) {
+            len = *(uint32_t*)(((uint8_t*) citem->storage) +
+                               (idx * citem->type_arg));
+            if (len > citem->type_arg) {
                 DEBUG("Error: bson length greater than array width in "
-                      "row %d", row);
-                return 0;
+                      "row %d", idx);
+                break;
             }
-            if (*((uint32_t*) citem->storage) < 5) {
-                DEBUG("Error: poorly formatted bson in row %d", row);
-                return 0;
+            if (len < 5) {
+                DEBUG("Error: poorly formatted bson in row %d", idx);
+                break;
             }
             val->value_type = BSON_TYPE_DOCUMENT;
-            val->value.v_doc.data_len = *((uint32_t*) citem->storage);
+            val->value.v_doc.data_len = len;
             val->value.v_doc.data = ((uint8_t*) citem->storage) +
                                     (idx * citem->type_arg);
+            success = 1;
+            break;
         default:
             DEBUG("Unsupported type %d", citem->type);
-            return 0;
     }
+    return success;
 }
 
 /**
@@ -1080,9 +1087,13 @@ int monary_insert(mongoc_collection_t* collection,
                   mongoc_client_t* client)
 {
     bson_error_t error;
+    bson_iter_t bsonit;
+    bson_iter_t descendant;
+    bson_oid_t oid;
     bson_t document;
     bson_t reply;
     monary_column_item* citem;
+    monary_column_item* id_citem;
     mongoc_bulk_operation_t* bulk_op;
     int base_len;
     int data_len;
@@ -1099,6 +1110,8 @@ int monary_insert(mongoc_collection_t* collection,
         return 0;
     }
 
+    id_citem = coldata->columns + (coldata->num_columns - 1);
+
     bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
 
     bson_init(&document);
@@ -1113,12 +1126,18 @@ int monary_insert(mongoc_collection_t* collection,
     DEBUG("Inserting %d documents with %d keys.",
           coldata->num_rows, coldata->num_columns);
     for (row = 0; row <= coldata->num_rows; row++) {
-        if ((row != coldata->num_rows) &&  // lazy and
-            !monary_bson_from_columns(coldata->columns, row, 0,
-                                      coldata->num_columns, &document,
+        if (row != coldata->num_rows) {
+            if (strcmp(coldata->columns->field, "_id") != 0) {
+                // If not _id is provided, generate one.
+                bson_oid_init(&oid, NULL);
+                BSON_APPEND_OID(&document, "_id", &oid);
+            }
+            if (!monary_bson_from_columns(coldata->columns, row, 0,
+                                      coldata->num_columns - 1, &document,
                                       0, 0)) {
-            num_inserted *= -1;
-            goto end;
+                num_inserted *= -1;
+                goto end;
+            }
         }
 
         if ((data_len + base_len + document.len > max_message_size) ||
@@ -1146,6 +1165,21 @@ int monary_insert(mongoc_collection_t* collection,
 
         data_len += document.len;
         mongoc_bulk_operation_insert(bulk_op, &document);
+
+        if (row != coldata->num_rows) {
+            // Load _id's for the user.
+            bson_iter_init(&bsonit, &document);
+            if (bson_iter_find_descendant(&bsonit, id_citem->field, &descendant)) {
+                if (!monary_load_item(&descendant, id_citem, row)) {
+                    num_inserted *= -1;
+                    goto end;
+                }
+            } else {
+                num_inserted *= -1;
+                goto end;
+            }
+        }
+
         bson_reinit(&document);
     }
     DEBUG("Inserted %d of %d documents", num_inserted, coldata->num_rows);

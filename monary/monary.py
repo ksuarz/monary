@@ -206,6 +206,9 @@ def validate_insert_fields(fields):
 
        :returns: None
     """
+    if "_id" in fields:
+        raise ValueError("cannot specify _id")
+
     if any(len(f) == 0 for f in fields):
         raise ValueError("field names must not be empty")
 
@@ -572,12 +575,12 @@ class Monary(object):
                           ..note:: fields will be sorted before insertion
            :param types: (optional) corresponding list of field types
 
-           :returns: number of successful inserts
-           :rtype: int
+           :returns: A numpy array of the inserted documents ObjectIds
+           :rtype: numpy.ndarray
         """
         if types is None:
             types = [str(arr.data.dtype) for arr in data]
-        inserted = 0
+        ids = numpy.array([], dtype="<V12")
         supported_types = ["bool", "int8", "int16", "int32", "int64",
                            "uint8", "uint16", "uint32", "uint64", "float32",
                            "float64", "date", "id", "timestamp", "string",
@@ -587,11 +590,12 @@ class Monary(object):
             raise ValueError("fields, types, and data must all be the "
                              "same length")
         if len(fields) == 0:
-            return 0
+            return ids
 
         validate_insert_fields(fields)
 
-        zipped = sorted(zip(fields, types, data), key=lambda x: x[0])
+        zipped = sorted(zip(fields, types, data),
+                        key=lambda x: x[0] if x != "_id" else " ")
         fields = [x[0] for x in zipped]
         types = [x[1] for x in zipped]
         data = [x[2] for x in zipped]
@@ -608,7 +612,8 @@ class Monary(object):
 
         collection = None
         try:
-            coldata = cmonary.monary_alloc_column_data(len(data), len(data[0]))
+            coldata = cmonary.monary_alloc_column_data(len(data) + 1,
+                                                       len(data[0]))
             for i, arr in enumerate(data):
                 cmonary_type, cmonary_type_arg, numpy_type = \
                     get_monary_numpy_type(types[i])
@@ -625,6 +630,21 @@ class Monary(object):
                                                cmonary_type, cmonary_type_arg,
                                                data_p, mask_p)
 
+            # Add on a column for the ids to be returned
+            id_type = "id"
+            if "_id" in fields:
+                id_type = types[fields.index("_id")]
+            cmonary_type, cmonary_type_arg, numpy_type = \
+                    get_monary_numpy_type(id_type)
+
+            ids = numpy.zeros(len(data[0]), dtype=numpy_type)
+            cmonary.monary_set_column_item(coldata,
+                                           len(data),
+                                           "_id".encode("ascii"),
+                                           cmonary_type, cmonary_type_arg,
+                                           ids.ctypes.data_as(c_void_p),
+                                           None)
+
             collection = self._get_collection(db, coll)
             if collection is None:
                 raise ValueError("unable to get the collection")
@@ -632,7 +652,7 @@ class Monary(object):
             inserted = cmonary.monary_insert(collection, coldata,
                                              self._connection)
 
-            if inserted < 0:
+            if inserted < 1:
                 raise RuntimeError("insert failed after inserting %d "
                                    "documents" % abs(inserted))
         finally:
@@ -640,7 +660,7 @@ class Monary(object):
                 cmonary.monary_free_column_data(coldata)
             if collection is not None:
                 cmonary.monary_destroy_collection(collection)
-        return inserted
+        return ids
 
     def close(self):
         """Closes the current connection, if any."""

@@ -54,6 +54,7 @@ def random_timestamp():
     ts = bson.timestamp.Timestamp(
         time=random.randint(0, 2147483647),
         inc=random.randint(0, 2147483647))
+    # TODO : fix this. Maybe the option below??
     # return int.from_bytes(struct.pack("<II", ts.time, ts.inc), "little")
     return (ts.time << 32) | (ts.inc)
 
@@ -136,39 +137,40 @@ def setup():
     bin_arr = make_ma([os.urandom(20) for _ in NTR()], "<V20")
     ARRAYS.append(bin_arr)
     # sequence for sorting
-    seq = ma.masked_array(list(NTR()), np.zeros(NUM_TEST_RECORDS),
-                          dtype="int64")
+    seq = ma.masked_array(np.arange(NUM_TEST_RECORDS, dtype="int64"),
+                          np.zeros(NUM_TEST_RECORDS))
     ARRAYS.append(seq)
 
 
 def test_insert_no_types():
     with monary.Monary() as m:
-        # Dates and timestamps can't be defaulted properly
-        inserted = m.insert("monary_test", "data", ARRAYS[:-5],
-                            ["bool", "int8", "int16", "int32", "int64",
-                             "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64"])
-        assert inserted == NUM_TEST_RECORDS
+        # Dates, timestamps, etc. can't be defaulted properly
+        ids = m.insert("monary_test", "data", ARRAYS[:-5],
+                       ["bool", "int8", "int16", "int32", "int64",
+                        "uint8", "uint16", "uint32", "uint64", "float32",
+                        "float64"])
+        assert len(ids) == NUM_TEST_RECORDS
         teardown()
 
 
 def test_insert():
     with monary.Monary() as m:
-        inserted = m.insert("monary_test", "data", ARRAYS[:-1],
-                            ["bool", "int8", "int16", "int32", "int64",
-                             "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64", "timestamp", "date", "string",
-                             "binary"],
-                            ["bool", "int8", "int16", "int32", "int64",
-                             "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64", "timestamp", "date", "string:10",
-                             "binary:20"])
-        assert inserted == NUM_TEST_RECORDS
+        ids = m.insert("monary_test", "data", ARRAYS[:-1],
+                       ["bool", "int8", "int16", "int32", "int64",
+                        "uint8", "uint16", "uint32", "uint64", "float32",
+                        "float64", "timestamp", "date", "string",
+                        "binary"],
+                       ["bool", "int8", "int16", "int32", "int64",
+                        "uint8", "uint16", "uint32", "uint64", "float32",
+                        "float64", "timestamp", "date", "string:10",
+                        "binary:20"])
+        assert len(ids) == NUM_TEST_RECORDS
         teardown()
 
 
 def test_retrieve_no_types():
     with monary.Monary() as m:
+        # Dates, timestamps, etc. can't be defaulted properly
         m.insert("monary_test", "data", ARRAYS[:-5] + [seq],
                  ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                   "x9", "x10", "x11", "sequence"])
@@ -214,8 +216,8 @@ def test_retrieve():
                         for i in range(len(data))
                         if not data.mask[i]]
                 expected = [fun(expected[i])
-                        for i in range(len(expected))
-                        if not expected.mask[i]]
+                            for i in range(len(expected))
+                            if not expected.mask[i]]
                 # make np.arrays so .all() still works
                 data = np.array([data == expected])
                 expected = np.array([True])
@@ -226,22 +228,22 @@ def test_retrieve():
 def test_oid():
     # Insert documents to generate oid's
     with monary.Monary() as m:
-        m.insert("monary_test", "data", [bool_arr, seq],
-                 ["dummy", "sequence"])
-    # Get back the id's and test inserting them
-    with monary.Monary() as m:
-        retrieved = m.query("monary_test", "data", {},
-                            ["_id", "sequence"],
-                            ["id", "int64"], sort="sequence")
-        retrieved[1] += NUM_TEST_RECORDS
-        inserted = m.insert("monary_test", "data", retrieved,
-                            ["oid", "sequence"], ["id", "int64"])
-        assert inserted == NUM_TEST_RECORDS
+        ids = m.insert("monary_test", "data", [bool_arr, seq],
+                       ["dummy", "sequence"])
+        seq2 = seq + NUM_TEST_RECORDS
+        ids = ma.masked_array(ids, np.zeros(NUM_TEST_RECORDS))
+        assert ids.count() == NUM_TEST_RECORDS
+        ids2 = m.insert("monary_test", "data", [ids, seq2],
+                        ["oid", "sequence"], ["id", "int64"])
+        assert len(ids2) == NUM_TEST_RECORDS
     with monary.Monary() as m:
         retrieved = m.query("monary_test", "data", {},
                             ["_id", "oid"], ["id", "id"], sort="sequence")
-        data = retrieved[0][:NUM_TEST_RECORDS]
-        expected = retrieved[1][NUM_TEST_RECORDS:]
+        expected = retrieved[0][:NUM_TEST_RECORDS]
+        data = retrieved[1][NUM_TEST_RECORDS:]
+        assert len(expected) == len(data)
+        assert len(expected) == expected.count()
+        assert len(data) == data.count()
         for d, e in zip(data, expected):
             assert mvoid_to_bson_id(d) == mvoid_to_bson_id(e)
     teardown()
@@ -340,7 +342,7 @@ def test_insert_bson():
         if i % 3 == 0:
             doc["float"] = random.uniform(-1e30, 1e30)
         docs.append(doc)
-    encoded = [bson.BSON.encode(doc) for doc in docs]
+    encoded = [bson.BSON.encode(d) for d in docs]
     max_len = max(map(len, encoded))
     encoded = ma.masked_array(encoded, np.zeros(NUM_TEST_RECORDS),
                               "<V%d" % max_len)
@@ -353,9 +355,10 @@ def test_insert_bson():
         for i, doc in enumerate(col.find().sort(
                 [("sequence", pymongo.ASCENDING)])):
             assert doc["sequence"] == i
-            assert doc["subdoc"] == docs[i]
+            assert doc["doc"] == docs[i]
+    teardown()
 
 
 def teardown():
     with pymongo.MongoClient() as c:
-        c.drop_database("monary_test")  # ensure that database does not exist
+        c.drop_database("monary_test")
