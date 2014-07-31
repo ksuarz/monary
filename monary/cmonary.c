@@ -958,8 +958,12 @@ int monary_make_bson_value_t(bson_value_t* val,
             break;
         case TYPE_TIMESTAMP:
             val->value_type = BSON_TYPE_TIMESTAMP;
-            val->value.v_timestamp.timestamp = ((uint32_t*) citem->storage)[2 * idx];
-            val->value.v_timestamp.increment = ((uint32_t*) citem->storage)[(2 * idx) + 1];;
+            memcpy(&val->value.v_timestamp.timestamp,
+                   ((uint32_t*) citem->storage) + (2 * idx),
+                   sizeof(uint32_t));
+            memcpy(&val->value.v_timestamp.increment,
+                   ((uint32_t*) citem->storage) + (2 * idx + 1),
+                   sizeof(uint32_t));
             success = 1;
             break;
         case TYPE_STRING:
