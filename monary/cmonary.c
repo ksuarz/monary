@@ -419,13 +419,15 @@ int monary_load_string_value(const bson_iter_t* bsonit,
 
     if (BSON_ITER_HOLDS_UTF8(bsonit)) {
         src = bson_iter_utf8(bsonit, &stringlen);
+        // increment string len to count the null character
         stringlen++;
         size = citem->type_arg;
         if (stringlen > size) {
             stringlen = size;
         }
         dest = ((char*) citem->storage) + (idx * size);
-        bson_strncpy(dest, src, stringlen);
+        // Note: numpy strings need not end in \0
+        memcpy(dest, src, stringlen);
         return 1;
     } else {
         return 0;
