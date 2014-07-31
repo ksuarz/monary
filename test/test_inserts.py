@@ -5,6 +5,7 @@ import datetime
 import os
 import random
 import string
+import struct
 import sys
 import time
 
@@ -54,9 +55,8 @@ def random_timestamp():
     ts = bson.timestamp.Timestamp(
         time=random.randint(0, 2147483647),
         inc=random.randint(0, 2147483647))
-    # TODO : fix this. Maybe the option below??
-    # return int.from_bytes(struct.pack("<II", ts.time, ts.inc), "little")
-    return (ts.time << 32) | (ts.inc)
+    sp = struct.pack("<ii", ts.time, ts.inc)
+    return struct.unpack('@q', sp)[0]
 
 
 def random_date():
