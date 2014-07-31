@@ -507,7 +507,6 @@ int monary_load_size_value(const bson_iter_t* bsonit,
         case BSON_TYPE_UTF8:
         case BSON_TYPE_CODE:
             bson_iter_utf8(bsonit, &size);
-            size++;
             break;
         case BSON_TYPE_BINARY:
             bson_iter_binary(bsonit, NULL, &size, &discard);
