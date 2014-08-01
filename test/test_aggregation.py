@@ -13,7 +13,7 @@ def setup():
     with pymongo.Connection("127.0.0.1") as c:
         c.drop_database("monary_test")
 
-        for i in xrange(NUM_TEST_RECORDS):
+        for i in range(NUM_TEST_RECORDS):
             if i % 2 == 0:
                 doc = {
                     "_id" : i,
