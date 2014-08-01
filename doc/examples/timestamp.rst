@@ -35,7 +35,7 @@ Finally, we use `struct <https://docs.python.org/2/library/struct.html>`_ to
 unpack the resulting data::
 
     >>> import struct
-    >>> data = [struct.unpack("<II", ts) for ts in time_stamps]
+    >>> data = [struct.unpack("<ii", ts) for ts in time_stamps]
     >>> time_stamps = [bson.timestamp.Timestamp(time=time, inc=inc)
     ...                for time, inc in data]
     >>> time_stamps[0]
