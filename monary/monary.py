@@ -265,6 +265,7 @@ def get_pipeline(pipeline):
             pipeline = {"pipeline" : [pipeline]}
     else:
         raise TypeError("Pipeline must be a dict or a list")
+    return pipeline
 
 
 class Monary(object):
@@ -551,7 +552,8 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def aggregate(self, db, coll, pipeline, fields, types):
+    def aggregate(self, db, coll, pipeline, fields, types, limit=0,
+                  do_count=True):
         """Performs an aggregation operation.
 
            :param: db: name of database
@@ -623,7 +625,7 @@ class Monary(object):
         if block_size < 1:
             block_size = 1
 
-        pipeline = self.get_pipeline(pipeline)
+        pipeline = get_pipeline(pipeline)
         encoded_pipeline = get_plain_query(pipeline)
 
         coldata = None
