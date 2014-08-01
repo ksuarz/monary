@@ -147,6 +147,11 @@ def test_binary_column():
         expected = [str(b) for b in get_record_values("binaryval")]
     assert data == expected
 
+def test_nested_field():
+    data = get_monary_column("subdocumentval.subkey", "int32")
+    expected = [ r["subkey"] for r in get_record_values("subdocumentval") ]
+    assert data == expected
+
 def list_to_bsonable_dict(values):
     return OrderedDict((str(i), val) for i, val in enumerate(values))
 
@@ -205,7 +210,7 @@ def test_bson_length_column():
 
 def test_string_size_column():
     data = get_monary_column("stringval", "size")
-    expected = [ len(x) + 1 for x in get_record_values("stringval") ]
+    expected = [ len(x) for x in get_record_values("stringval") ]
     assert data == expected
 
 def test_list_size_column():
