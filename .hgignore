@@ -1,9 +1,0 @@
-syntax: glob
-
-*.pyc
-*.o
-*.a
-*.so
-*.dylib
-build/*
-*.DS_Store
