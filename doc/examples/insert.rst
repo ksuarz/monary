@@ -3,8 +3,11 @@ Insert Example
 
 This example shows you how to use Monary's ``insert`` command to send documents
 to MongoDB.
-`show <javascript:$('span.gp, span.go').show();>`_
-`hide <javascript:$('span.gp, span.go').hide();>`_
+
+Any value that can be queried can also be inserted except for ``type``,
+``length``, and ``size``. Values returned from any of those queries, however,
+can themselves be inserted. Both nested field insertion (via fields containing
+".") and BSON value insertion are supported as well.
 
 Purpose of Insert
 -----------------
@@ -72,14 +75,18 @@ Now we process the scores and assign grades to each student::
 
 Now weight both tests and assign overall grades:
 
-    >>> final_grades = (grades[0] * 0.4 + grades[1] * 0.6).round(3)
+    >>> overall_grades = (grades[0] * 0.4 + grades[1] * 0.6).round(3)
 
 Finally, we insert the results to the database::
 
-    >>> m.insert("monary_students", "graded", [ids, final_grades] + grades,
-    ...          ["student_id", "grades.overall", "grades.midterm",
-    ...           "grades.final_exam"],
-    ...          ["string:14"] + ["float64"] * 3)
-    1000
+    >>> ids = m.insert("monary_students", "graded",
+    ...                [ids, overall_grades] + grades,
+    ...                ["student_id", "grades.overall", "grades.midterm",
+    ...                 "grades.final_exam"],
+    ...                ["string:14"] + ["float64"] * 3)
+    >>> oids = list(map(monary.monary.mvoid_to_bson_id, ids))
+    >>> oids[0]
+    ObjectId('53dba51e61155374af671dc1')
 
-We can see that 1000 documents were inserted into the database.
+We can see that insert returns a Numpy array containing the ObjectId of the
+inserted documents.
