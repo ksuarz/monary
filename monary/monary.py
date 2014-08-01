@@ -561,7 +561,7 @@ class Monary(object):
            :param pipeline: a list of pipeline stages
            :param fields: list of fields to be extracted from the result
            :param types: corresponding list of field types
-            
+
            :returns: list of numpy.ndarray, corresponding to the requested
                      fields and types
            :rtype: list
