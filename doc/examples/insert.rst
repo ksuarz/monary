@@ -3,8 +3,11 @@ Insert Example
 
 This example shows you how to use Monary's ``insert`` command to send documents
 to MongoDB.
-`show <javascript:$('span.gp, span.go').show();>`_
-`hide <javascript:$('span.gp, span.go').hide();>`_
+
+Any value that can be queried can also be inserted except for ``type``,
+``length``, and ``size``. Values returned from any of those queries, however,
+can themselves be inserted. Both nested field insertion (via fields containing
+".") and BSON value insertion are supported as well.
 
 Purpose of Insert
 -----------------
