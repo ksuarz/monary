@@ -1,11 +1,62 @@
-*.pyc
-*.o
-*.a
-*.so
-*.dylib
-build/*
-._*
+
+Makefile
 *.DS_Store
-data
+*.tar.gz
+
+# Swap files
+*.sw[po]
+*~
+
+# hg files
+.hg*
+
+# Compiled files and build artifacts
+*.Plo
+*.Po
+*.a
+*.dylib
+*.la
+*.lo
+*.o
+*.pc
+*.pyc
+*.so
+.dirstamp
+.libs/*
+
+# Python build artifacts
+Monary.egg-info/*
+*.egg
+
+# C driver build artifacts
+mongodb-mongo-c-driver-*/src/mongoc/mongoc-config.h
+mongodb-mongo-c-driver-*/Makefile
+mongodb-mongo-c-driver-*/build/version
+mongodb-mongo-c-driver-*/config.log
+mongodb-mongo-c-driver-*/config.status
+mongodb-mongo-c-driver-*/libtool
+mongodb-mongo-c-driver-*/.libs
+
+# libbson build artifacts
+mongodb-mongo-c-driver-*/src/libbson/src/bson/bson-stdint.h
+mongodb-mongo-c-driver-*/src/libbson/src/bson/bson-config.h
+mongodb-mongo-c-driver-*/src/libbson/config.log
+mongodb-mongo-c-driver-*/src/libbson/config.status
+mongodb-mongo-c-driver-*/src/libbson/libtool
+mongodb-mongo-c-driver-*/src/libbson/.libs
+
+# libmongoc executables
+mongodb-mongo-c-driver-*/mongoc-stat
+
+# libbson executables
+mongodb-mongo-c-driver-*/src/libbson/bcon-col-view
+mongodb-mongo-c-driver-*/src/libbson/bcon-speed
+mongodb-mongo-c-driver-*/src/libbson/bson-metrics
+mongodb-mongo-c-driver-*/src/libbson/bson-to-json
+mongodb-mongo-c-driver-*/src/libbson/bson-validate
+mongodb-mongo-c-driver-*/src/libbson/json-to-bson
+mongodb-mongo-c-driver-*/src/libbson/test-libbson
+
+doc/_build
+build
 dist
-MANIFEST
