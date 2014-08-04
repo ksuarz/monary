@@ -27,12 +27,11 @@ def do_insert():
             stuff = []
             for j in xrange(BATCH_SIZE):
                 idx = i * BATCH_SIZE + j
-                record = dict(x1=arrays[0][idx],
-                              x2=arrays[1][idx],
-                              x3=arrays[2][idx],
-                              x4=arrays[3][idx],
-                              x5=arrays[4][idx]
-                              )
+                record = {"x1": arrays[0][idx],
+                          "x2": arrays[1][idx],
+                          "x3": arrays[2][idx],
+                          "x4": arrays[3][idx],
+                          "x5": arrays[4][idx]}
                 stuff.append(record)
             collection.insert(stuff)
 

@@ -983,6 +983,7 @@ int monary_make_bson_value_t(bson_value_t* val,
             break;
         default:
             DEBUG("Unsupported type %d", citem->type);
+            break;
     }
     return success;
 }
@@ -1030,14 +1031,24 @@ int monary_bson_from_columns(monary_column_item* columns,
                  dot_idx++)
             ; // Advance dot_idx to either '.' or '\0'
             if (*(field + dot_idx)) {
-                for (new_end = i + 1;
-                     new_end < col_end
-                     && strlen((columns + new_end)->field) > name_offset + dot_idx
-                     && (strncmp(field,
-                                 (columns + new_end)->field + name_offset,
-                                 dot_idx) == 0);
-                     new_end++)
-                ; // Advance new_end so everything before has the same key
+                new_end = i + 1;
+                // This while loop will advance new_end so every column between
+                // i and new_end have the same key up until the '.'
+                while (new_end < col_end) {
+                    // Check that the field we're looking at is long enough to
+                    // be at the same nested level as ``field``.
+                    if (strlen((columns + new_end)->field) > name_offset + dot_idx) {
+                        // Check that the field we're looking at is the same
+                        // as ``field`` up until the '.'
+                        if (strncmp(field,
+                                    (columns + new_end)->field + name_offset,
+                                    dot_idx) == 0){
+                            new_end++;
+                            continue;
+                        }
+                    }
+                    break;
+                }
                 bson_append_document_begin(parent, citem->field + name_offset,
                                            dot_idx, &child);
                 monary_bson_from_columns(columns, row, i, new_end, &child,
@@ -1079,8 +1090,9 @@ int monary_insert(mongoc_collection_t* collection,
     bson_t document;
     bson_t reply;
     monary_column_item* citem;
-    monary_column_item* id_citem;
+    monary_column_item* return_citem;
     mongoc_bulk_operation_t* bulk_op;
+    bool id_is_provided;
     int base_len;
     int data_len;
     int i;
@@ -1095,8 +1107,8 @@ int monary_insert(mongoc_collection_t* collection,
         DEBUG("%s", "Given a NULL param.");
         return 0;
     }
-
-    id_citem = coldata->columns + (coldata->num_columns - 1);
+    id_is_provided = strcmp(coldata->columns->field, "_id") == 0;
+    return_citem = coldata->columns + (coldata->num_columns - 1);
 
     bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
 
@@ -1105,29 +1117,26 @@ int monary_insert(mongoc_collection_t* collection,
     num_inserted = 0;
 
     max_message_size = mongoc_client_get_max_message_size(client);
-    DEBUG("Max messgae size: %d", max_message_size);
+    DEBUG("Max message size: %d", max_message_size);
     base_len = 60; // TODO something like `bulk_op->commands.element_size;`
     data_len = 0;
 
     DEBUG("Inserting %d documents with %d keys.",
-          coldata->num_rows, coldata->num_columns);
-    for (row = 0; row <= coldata->num_rows; row++) {
-        if (row != coldata->num_rows) {
-            if (strcmp(coldata->columns->field, "_id") != 0) {
-                // If not _id is provided, generate one.
-                bson_oid_init(&oid, NULL);
-                BSON_APPEND_OID(&document, "_id", &oid);
-            }
-            if (!monary_bson_from_columns(coldata->columns, row, 0,
+          coldata->num_rows, coldata->num_columns - 1);
+    for (row = 0; row < coldata->num_rows; row++) {
+        if (!id_is_provided) {
+            // If _id is not provided, generate one.
+            bson_oid_init(&oid, NULL);
+            BSON_APPEND_OID(&document, "_id", &oid);
+        }
+        if (!monary_bson_from_columns(coldata->columns, row, 0,
                                       coldata->num_columns - 1, &document,
                                       0, 0)) {
-                num_inserted *= -1;
-                goto end;
-            }
+            num_inserted *= -1;
+            goto end;
         }
 
-        if ((data_len + base_len + document.len > max_message_size) ||
-            (row == coldata->num_rows)) {
+        if ((data_len + base_len + document.len) > max_message_size) {
             num_docs = row - num_inserted;
             DEBUG("Inserting documents %d through %d, total data: %d",
                   num_inserted + 1, row, data_len + base_len);
@@ -1152,11 +1161,11 @@ int monary_insert(mongoc_collection_t* collection,
         data_len += document.len;
         mongoc_bulk_operation_insert(bulk_op, &document);
 
-        if (row != coldata->num_rows) {
-            // Load _id's for the user.
+        // Load _id's to be returned to the caller.
+        if (id_is_provided) {
             bson_iter_init(&bsonit, &document);
-            if (bson_iter_find_descendant(&bsonit, id_citem->field, &descendant)) {
-                if (!monary_load_item(&descendant, id_citem, row)) {
+            if (bson_iter_find_descendant(&bsonit, return_citem->field, &descendant)) {
+                if (!monary_load_item(&descendant, return_citem, row)) {
                     num_inserted *= -1;
                     goto end;
                 }
@@ -1164,9 +1173,31 @@ int monary_insert(mongoc_collection_t* collection,
                 num_inserted *= -1;
                 goto end;
             }
+        } else {
+            memcpy((bson_oid_t *)(return_citem->storage) + row,
+                   &oid.bytes,
+                   sizeof(bson_oid_t));
         }
 
         bson_reinit(&document);
+    }
+    // Send the final batch.
+    if (num_inserted < coldata->num_rows) {
+        num_docs = coldata->num_rows - num_inserted;
+        DEBUG("Inserting documents %d through %d, total data: %d",
+              num_inserted + 1, coldata->num_rows, data_len + base_len);
+        if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
+            num_inserted += num_docs;
+            data_len = 0;
+        } else {
+            DEBUG("Failed to insert documents %d through %d",
+                  num_inserted + 1, coldata->num_rows);
+            if (error.message) {
+                DEBUG("Error message: %s", error.message);
+            }
+            num_inserted *= -1;
+            goto end;
+        }
     }
     DEBUG("Inserted %d of %d documents", num_inserted, coldata->num_rows);
 end:

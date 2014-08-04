@@ -51,7 +51,7 @@ def setup():
                     uintval=random.randint(0, 255),
                     floatval=random.uniform(-1e30, 1e30),
                     boolval=(i % 2 == 0),
-                    dateval=(datetime.datetime(1970, 1, 1) + (1 - 2 * random.randint(0, 1)) *
+                    dateval=(datetime.datetime(1970, 1, 1) + (1 - 2 * random.randint(0,1)) *
                              datetime.timedelta(days=random.randint(0, 60 * 365),
                                                 seconds=random.randint(0, 24 * 60 * 60),
                                                 milliseconds=random.randint(0, 1000))),
@@ -78,8 +78,7 @@ def get_record_values(colname):
 
 def get_monary_column(colname, coltype):
     with get_monary_connection() as m:
-        column, = m.query("monary_test", "test_data", {}, [colname],
-                          [coltype], sort="sequence")
+        [ column ] = m.query("monary_test", "test_data", {}, [colname], [coltype], sort="sequence")
     return list(column)
 
 def check_int_column(coltype):
@@ -221,7 +220,7 @@ def test_list_size_column():
 
 def test_bson_size_column():
     data = get_monary_column("subdocumentval", "size")
-    expected = [ len(bson.BSON.encode(record)) for record in get_record_values("subdocumentval") ]
+    expected = [ len(bson.BSON.encode(record)) for record in get_record_values("subdocumentval")]
     assert data == expected
 
 def test_binary_size_column():

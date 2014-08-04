@@ -20,7 +20,22 @@ from monary.monary import mvoid_to_bson_id, validate_insert_fields
 PY3 = sys.version_info[0] >= 3
 
 NUM_TEST_RECORDS = 14000
-ARRAYS = None
+
+# This will hold all of the masked arrays that have inferable types. These such
+# arrays are those of type bool, int, uint, and float.
+TYPE_INFERABLE_ARRAYS = []
+# This will be a corresponding list of types for the list above.
+TYPE_INFERABLE_ARRAYS_TYPES = []
+
+# This will hold all of the masked arrays that do not have inferable types.
+# The types of timestamps and dates cannot be inferred because they are stored
+# in numpy as int64's. The types of strings, binary, ObjectIds, and BSON cannot
+# be inferred because they are all stored as pointers and require lengths.
+NON_TYPE_INFERABLE_ARRAYS = []
+# This will be a corresponding list of types for the list above.
+NON_TYPE_INFERABLE_ARRAYS_TYPES = []
+
+# These values are being cached to speed up the tests.
 bool_arr = None
 int8_arr = None
 int16_arr = None
@@ -36,7 +51,12 @@ timestamp_arr = None
 date_arr = None
 string_arr = None
 bin_arr = None
-seq = None
+
+# This is used for sorting results during queries to ensure the returned values
+# are in the same order as the values inserted.
+seq = ma.masked_array(np.arange(NUM_TEST_RECORDS, dtype="int64"),
+                      np.zeros(NUM_TEST_RECORDS))
+seq_type = "int64"
 
 
 def NTR():
@@ -74,141 +94,120 @@ def random_string(str_len):
 
 
 def setup():
-    global ARRAYS, bool_arr, int8_arr, int16_arr, int32_arr, int64_arr
-    global uint8_arr, uint16_arr, uint32_arr, uint64_arr, float32_arr
-    global float64_arr, timestamp_arr, date_arr, string_arr, bin_arr, seq
+    global TYPE_INFERABLE_ARRAYS, TYPE_INFERABLE_ARRAYS_TYPES
+    global NON_TYPE_INFERABLE_ARRAYS, NON_TYPE_INFERABLE_ARRAYS_TYPES
+    global bool_arr, int8_arr, int16_arr, int32_arr, int64_arr, uint8_arr
+    global uint16_arr, uint32_arr, uint64_arr, float32_arr, float64_arr
+    global timestamp_arr, date_arr, string_arr, bin_arr, seq
     with pymongo.MongoClient() as c:
-        c.drop_database("monary_test")  # ensure that database does not exist
-    random.seed(1234)  # for reproducibility
-    ARRAYS = []
-    # bool
+        c.drop_database("monary_test")
+    random.seed(1234)  # For reproducibility.
+
     bool_arr = make_ma(rand_bools(), "bool")
-    ARRAYS.append(bool_arr)
-    # int8
+    TYPE_INFERABLE_ARRAYS.append(bool_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("bool")
+
     int8_arr = make_ma([random.randint(0 - 2 ** 4, 2 ** 4 - 1)
                         for _ in NTR()], "int8")
-    ARRAYS.append(int8_arr)
-    # int16
+    TYPE_INFERABLE_ARRAYS.append(int8_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("int8")
+
     int16_arr = make_ma([random.randint(0 - 2 ** 8, 2 ** 8 - 1)
                          for _ in NTR()], "int16")
-    ARRAYS.append(int16_arr)
-    # int32
+    TYPE_INFERABLE_ARRAYS.append(int16_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("int16")
+
     int32_arr = make_ma([random.randint(0 - 2 ** 16, 2 ** 16 - 1)
                          for _ in NTR()], "int32")
-    ARRAYS.append(int32_arr)
-    # int64
+    TYPE_INFERABLE_ARRAYS.append(int32_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("int32")
+
     int64_arr = make_ma([random.randint(0 - 2 ** 32, 2 ** 32 - 1)
                          for _ in NTR()], "int64")
-    ARRAYS.append(int64_arr)
-    # uint8
+    TYPE_INFERABLE_ARRAYS.append(int64_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("int64")
+
     uint8_arr = make_ma([random.randint(0, 2 ** 8 - 1)
                          for _ in NTR()], "uint8")
-    ARRAYS.append(uint8_arr)
-    # uint16
+    TYPE_INFERABLE_ARRAYS.append(uint8_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("uint8")
+
     uint16_arr = make_ma([random.randint(0, 2 ** 16 - 1)
                           for _ in NTR()], "uint16")
-    ARRAYS.append(uint16_arr)
-    # uint32
+    TYPE_INFERABLE_ARRAYS.append(uint16_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("uint16")
+
     uint32_arr = make_ma([random.randint(0, 2 ** 32 - 1)
                           for _ in NTR()], "uint32")
-    ARRAYS.append(uint32_arr)
-    # uint64
+    TYPE_INFERABLE_ARRAYS.append(uint32_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("uint32")
+
     uint64_arr = make_ma([random.randint(0, 2 ** 64 - 1)
                           for _ in NTR()], "uint64")
-    ARRAYS.append(uint64_arr)
-    # float32
+    TYPE_INFERABLE_ARRAYS.append(uint64_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("uint64")
+
     float32_arr = make_ma([random.uniform(-1e30, 1e30)
                            for _ in NTR()], "float32")
-    ARRAYS.append(float32_arr)
-    # float64
+    TYPE_INFERABLE_ARRAYS.append(float32_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("float32")
+
     float64_arr = make_ma([random.uniform(-1e30, 1e30)
                            for _ in NTR()], "float64")
-    ARRAYS.append(float64_arr)
-    # timestamp
+    TYPE_INFERABLE_ARRAYS.append(float64_arr)
+    TYPE_INFERABLE_ARRAYS_TYPES.append("float64")
+
     timestamp_arr = make_ma([random_timestamp() for _ in NTR()], "uint64")
-    ARRAYS.append(timestamp_arr)
-    # date
+    NON_TYPE_INFERABLE_ARRAYS.append(timestamp_arr)
+    NON_TYPE_INFERABLE_ARRAYS_TYPES.append("timestamp")
+
     date_arr = make_ma([random_date() for _ in NTR()], "int64")
-    ARRAYS.append(date_arr)
-    # string
+    NON_TYPE_INFERABLE_ARRAYS.append(date_arr)
+    NON_TYPE_INFERABLE_ARRAYS_TYPES.append("date")
+
     string_arr = make_ma([random_string(10) for _ in NTR()], "S10")
-    ARRAYS.append(string_arr)
-    # binary
+    NON_TYPE_INFERABLE_ARRAYS.append(string_arr)
+    NON_TYPE_INFERABLE_ARRAYS_TYPES.append("string:10")
+
     bin_arr = make_ma([os.urandom(20) for _ in NTR()], "<V20")
-    ARRAYS.append(bin_arr)
-    # sequence for sorting
-    seq = ma.masked_array(np.arange(NUM_TEST_RECORDS, dtype="int64"),
-                          np.zeros(NUM_TEST_RECORDS))
-    ARRAYS.append(seq)
+    NON_TYPE_INFERABLE_ARRAYS.append(bin_arr)
+    NON_TYPE_INFERABLE_ARRAYS_TYPES.append("binary:20")
 
 
-def test_insert_no_types():
+def test_insert_and_retrieve_no_types():
     with monary.Monary() as m:
-        # Dates, timestamps, etc. can't be defaulted properly
-        ids = m.insert("monary_test", "data", ARRAYS[:-5],
-                       ["bool", "int8", "int16", "int32", "int64",
-                        "uint8", "uint16", "uint32", "uint64", "float32",
-                        "float64"])
+        ids = m.insert("monary_test", "data", TYPE_INFERABLE_ARRAYS + [seq],
+                       ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
+                        "x9", "x10", "x11", "sequence"])
         assert len(ids) == NUM_TEST_RECORDS
-        teardown()
-
-
-def test_insert():
-    with monary.Monary() as m:
-        ids = m.insert("monary_test", "data", ARRAYS[:-1],
-                       ["bool", "int8", "int16", "int32", "int64",
-                        "uint8", "uint16", "uint32", "uint64", "float32",
-                        "float64", "timestamp", "date", "string",
-                        "binary"],
-                       ["bool", "int8", "int16", "int32", "int64",
-                        "uint8", "uint16", "uint32", "uint64", "float32",
-                        "float64", "timestamp", "date", "string:10",
-                        "binary:20"])
-        assert len(ids) == NUM_TEST_RECORDS
-        teardown()
-
-
-def test_retrieve_no_types():
-    with monary.Monary() as m:
-        # Dates, timestamps, etc. can't be defaulted properly
-        m.insert("monary_test", "data", ARRAYS[:-5] + [seq],
-                 ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                  "x9", "x10", "x11", "sequence"])
-    with monary.Monary() as m:
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11"],
-                            ["bool", "int8", "int16", "int32", "int64",
-                             "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64"], sort="sequence")
-        for data, expected in zip(retrieved, ARRAYS[:-5]):
+                            TYPE_INFERABLE_ARRAYS_TYPES, sort="sequence")
+        for data, expected in zip(retrieved, TYPE_INFERABLE_ARRAYS):
             assert data.count() == expected.count()
             assert (data == expected).all()
     teardown()
 
 
-def test_retrieve():
+def test_insert_and_retrieve():
+    arrays = TYPE_INFERABLE_ARRAYS + NON_TYPE_INFERABLE_ARRAYS + [seq]
+    types = TYPE_INFERABLE_ARRAYS_TYPES + NON_TYPE_INFERABLE_ARRAYS_TYPES \
+        + [seq_type]
     with monary.Monary() as m:
-        m.insert("monary_test", "data", ARRAYS,
-                 ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                  "x9", "x10", "x11", "x12", "x13", "x14", "x15", "sequence"],
-                 ["bool", "int8", "int16", "int32", "int64",
-                  "uint8", "uint16", "uint32", "uint64", "float32",
-                  "float64", "timestamp", "date", "string:10",
-                  "binary:20", "int64"])
-    with monary.Monary() as m:
+        ids = m.insert("monary_test", "data", arrays,
+                       ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
+                        "x9", "x10", "x11", "x12", "x13", "x14", "x15",
+                        "sequence"], types)
+        assert len(ids) == NUM_TEST_RECORDS
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11", "x12", "x13", "x14", "x15",
-                             "sequence"],
-                            ["bool", "int8", "int16", "int32", "int64",
-                             "uint8", "uint16", "uint32", "uint64", "float32",
-                             "float64", "timestamp", "date", "string:10",
-                             "binary:20", "int64"], sort="sequence")
-        for data, expected in zip(retrieved, ARRAYS):
+                             "sequence"], types, sort="sequence")
+        for data, expected in zip(retrieved, arrays):
             assert data.count() == expected.count()
             if("V" in str(data.dtype)):
-                # need to convery binary data
+                # Need to convert binary data.
                 fun = str
                 if PY3:
                     fun = bytes
@@ -218,7 +217,7 @@ def test_retrieve():
                 expected = [fun(expected[i])
                             for i in range(len(expected))
                             if not expected.mask[i]]
-                # make np.arrays so .all() still works
+                # Make these into np.arrays so .all() still works.
                 data = np.array([data == expected])
                 expected = np.array([True])
             assert (data == expected).all()
@@ -226,20 +225,25 @@ def test_retrieve():
 
 
 def test_oid():
-    # Insert documents to generate oid's
     with monary.Monary() as m:
+        # Insert documents to generate ObjectIds.
         ids = m.insert("monary_test", "data", [bool_arr, seq],
                        ["dummy", "sequence"])
-        seq2 = seq + NUM_TEST_RECORDS
+        assert len(ids) == NUM_TEST_RECORDS
         ids = ma.masked_array(ids, np.zeros(NUM_TEST_RECORDS))
-        assert ids.count() == NUM_TEST_RECORDS
+        # Increment the sequence so sorting still works
+        seq2 = seq + NUM_TEST_RECORDS
         ids2 = m.insert("monary_test", "data", [ids, seq2],
                         ["oid", "sequence"], ["id", "int64"])
         assert len(ids2) == NUM_TEST_RECORDS
-    with monary.Monary() as m:
+        # Get back the ids from the original insert (_id) and the ids that
+        # were manually inserted (oid)
         retrieved = m.query("monary_test", "data", {},
                             ["_id", "oid"], ["id", "id"], sort="sequence")
+        # These should be equal to ``ids`` from the top of this test.
         expected = retrieved[0][:NUM_TEST_RECORDS]
+        # This is what we get back when querying for the ObjectIds
+        # that were inserted manually above.
         data = retrieved[1][NUM_TEST_RECORDS:]
         assert len(expected) == len(data)
         assert len(expected) == expected.count()
@@ -251,20 +255,16 @@ def test_oid():
 
 def test_insert_field_validation():
     good = [
-        ['a', 'b', 'c'],
-        ['a', 'b.a', 'b.b', 'c'],
-        ['a.a', 'a.b', 'a.c', 'b', 'c.a', 'c.b', 'c.c'],
-        ['a.a.a', 'a.b', 'a.a.b', 'a.c.a', 'b', 'a.c.b'],
-        ['a.b.c.d.e.f', 'g.h.i.j.k', 'l.m.n.o.p.q.r.s.t.u', 'b.c.d'],
+        ["a", "b", "c"],
+        ["a", "b.a", "b.b", "c"],
+        ["a.a", "a.b", "a.c", "b", "c.a", "c.b", "c.c"],
+        ["a.b.c.d.e.f", "g.h.i.j.k", "l.m.n.o.p.q.r.s.t.u", "b.c.d"],
     ]
     bad = [
-        ['a', 'b', 'a'],  # 'a' occurs twice
-        ['a', 'b.c', 'b.c.d'],  # 'b.c' is duplicated
-        ['a.a', 'a.b', 'b', 'c.a', 'c.b', 'a.b.c'],  # 'a.b' is duplicated
-        ['a.a.a', 'a.a.b', 'a.b', 'a.c.a', 'a.c.b', 'b', 'c.a', 'c.',
-         'd.a.a', 'd.a.b', 'd.b', 'd.c.a', 'd.c.b'],  # 'c.' ends in '.'
-        ['a.b.c.d.e.f', 'g.h.i.j.k', 'l.m.n.o.p.q.r.s.t.u', 'v.w.x',
-         'y.z', 'a']  # 'a' is duplicated
+        ["a", "b", "a"],  # "a" occurs twice.
+        ["a", "b.c", "b.c.d"],  # "b.c" is duplicated.
+        ["a.a", "a.b", "b", "c.a", "c.b", "a.b.c"],  # "a.b" is duplicated.
+        ["a.a.a", "a.a.b", "a.c.b", "b", "c.a", "c."]  # "c." ends in ".".
     ]
     for g in good:
         try:
@@ -360,27 +360,27 @@ def test_insert_bson():
 
 
 def test_custom_id():
-    id_seq = None
-    id_float = None
-    f_unmasked = ma.masked_array(float64_arr.data,
+    f_unmasked = ma.masked_array(np.arange(NUM_TEST_RECORDS, dtype="float64"),
                                  np.zeros(NUM_TEST_RECORDS))
+    # To avoid collision with seq.
+    f_unmasked += 0.5
     with monary.Monary() as m:
         id_seq = m.insert("monary_test", "data",
                           [int16_arr, seq], ["num", "_id"])
         assert len(id_seq) == NUM_TEST_RECORDS
         assert (id_seq == seq.data).all()
-        # NOTE: This assumes unique values for all random floats.
         id_float = m.insert("monary_test", "data",
                             [seq, date_arr, f_unmasked],
                             ["sequence", "x.date", "_id"],
                             ["int64", "date", "float64"])
         assert len(id_float) == NUM_TEST_RECORDS
         assert (id_float == f_unmasked.data).all()
-    with monary.Monary() as m:
+        # BSON type 18 is int64.
         data, = m.query("monary_test", "data", {"_id": {"$type": 18}},
                         ["_id"], ["int64"], sort="_id")
         assert len(data) == data.count() == NUM_TEST_RECORDS
         assert (data == seq).all()
+        # BSON type 1 is double (float64).
         data, = m.query("monary_test", "data", {"_id": {"$type": 1}},
                         ["_id"], ["float64"], sort="sequence")
         assert len(data) == data.count() == NUM_TEST_RECORDS

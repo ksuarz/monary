@@ -120,6 +120,12 @@ MONARY_TYPES = {
     "length":    (20, numpy.uint32),
 }
 
+_SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
+                    "uint8", "uint16", "uint32", "uint64", "float32",
+                    "float64", "date", "id", "timestamp", "string",
+                    "binary", "bson"]
+
+
 def get_monary_numpy_type(orig_typename):
     """Given a common typename, find the corresponding cmonary type number,
        type argument, and numpy type object (or code).
@@ -209,18 +215,20 @@ def validate_insert_fields(fields):
     if any(len(f) == 0 for f in fields):
         raise ValueError("field names must not be empty")
 
-    if any(f.endswith(".") for f in fields):
-        raise ValueError("field names cannot end in '.'")
+    for f in fields:
+        if f.endswith('.'):
+            raise ValueError("invalid fieldname: %r, must not end in '.'" % f)
+        if '$' in f:
+            raise ValueError("invalid fieldname: %r, must not contain '$'" % f)
 
-    if any(fields[i] in fields[i + 1:]
-           for i in range(len(fields))):
+    if len(fields) != len(set(fields)):
         raise ValueError("field names must all be unique")
 
-    if any(f1.startswith(f2) and f1[len(f2)] == '.'
-           for f1 in fields for f2 in fields
-           if f1 != f2):
-        raise ValueError("fields cannot be keys for both values "
-                         "and nested documents")
+    for f1 in fields:
+        for f2 in fields:
+            if f1 != f2 and f1.startswith(f2) and f1[len(f2)] == '.':
+                raise ValueError("fieldname %r conflicts with nested-document "
+                                 "fieldname %r" % (f2, f1))
 
 
 def get_ordering_dict(obj):
@@ -569,50 +577,54 @@ class Monary(object):
            :param coll: name of the collection to insert into
            :param data: list of numpy masked arrays to be inserted
            :param fields: list of fields to name the data to be inserted
-                          ..note:: fields will be sorted before insertion
            :param types: (optional) corresponding list of field types
 
            :returns: A numpy array of the inserted documents ObjectIds
            :rtype: numpy.ndarray
+
+           ..note:: Fields will be sorted before insertion. To ensure that _id
+                    is the first filed in all generated documents and that
+                    nested keys are consecutive, all keys will be sorted
+                    alphabetically before the insertions are performed. The
+                    corresponding types and data will be sorted the same way to
+                    maintain the original correspondence.
         """
         if types is None:
             types = [str(arr.data.dtype) for arr in data]
         ids = numpy.array([], dtype="<V12")
-        supported_types = ["bool", "int8", "int16", "int32", "int64",
-                           "uint8", "uint16", "uint32", "uint64", "float32",
-                           "float64", "date", "id", "timestamp", "string",
-                           "binary", "bson"]
 
         if len(data) != len(fields) or len(fields) != len(types):
             raise ValueError("fields, types, and data must all be the "
                              "same length")
         if len(fields) == 0:
-            return ids
+            raise ValueError("cannot do an empty insert")
 
         validate_insert_fields(fields)
         if "_id" in fields:
             idx = fields.index("_id")
             if data[idx].mask.any():
-                raise ValueError("custom _ids must be fully unmasked")
+                raise ValueError("the _id array must not have any masked "
+                                 "values")
 
+        # To ensure that _id is the first key, the string "_id" is mapped
+        # to chr(0). This will put "_id" in front of "_a".
         zipped = sorted(zip(fields, types, data),
-                        key=lambda x: x[0] if x != "_id" else " ")
+                        key=lambda x: x[0] if x != "_id" else chr(0))
         fields = [x[0] for x in zipped]
         types = [x[1] for x in zipped]
         data = [x[2] for x in zipped]
 
-        if any(t.split(":")[0] not in supported_types for t in types):
-            unsupported = [t for t in types
-                           if t.split(":")[0] not in supported_types]
-            plural = "s" if len(unsupported) > 1 else ""
-            raise NotImplementedError("cannot insert type%s: %s"
-                                      "" % (plural, ", ".join(unsupported)))
+        for t in types:
+            if t.split(":")[0] not in _SUPPORTED_TYPES:
+                raise ValueError("cannot insert type %r" % t)
 
         if len(set(len(x) for x in data)) != 1:
             raise ValueError("all given arrays must be of the same length")
 
         collection = None
         try:
+            # Coldata will contain an extra unmasked column at the end. This
+            # final column will be filled with _id values and returned.
             coldata = cmonary.monary_alloc_column_data(len(data) + 1,
                                                        len(data[0]))
             for i, arr in enumerate(data):
@@ -627,7 +639,7 @@ class Monary(object):
                 data_p = arr.data.ctypes.data_as(c_void_p)
                 mask_p = arr.mask.ctypes.data_as(c_void_p)
                 cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("ascii"),
+                                               fields[i].encode("utf-8"),
                                                cmonary_type, cmonary_type_arg,
                                                data_p, mask_p)
 
@@ -641,7 +653,7 @@ class Monary(object):
             ids = numpy.zeros(len(data[0]), dtype=numpy_type)
             cmonary.monary_set_column_item(coldata,
                                            len(data),
-                                           "_id".encode("ascii"),
+                                           "_id".encode("utf-8"),
                                            cmonary_type, cmonary_type_arg,
                                            ids.ctypes.data_as(c_void_p),
                                            None)
