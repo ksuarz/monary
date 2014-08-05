@@ -75,7 +75,7 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPP:I"
+    "monary_insert:PPPP:I"
 ]
 
 MAX_COLUMNS = 1024
@@ -597,16 +597,15 @@ class Monary(object):
            :returns: A numpy array of the inserted documents ObjectIds
            :rtype: numpy.ndarray
 
-           ..note:: Fields will be sorted before insertion. To ensure that _id
-                    is the first filed in all generated documents and that
-                    nested keys are consecutive, all keys will be sorted
-                    alphabetically before the insertions are performed. The
-                    corresponding types and data will be sorted the same way to
-                    maintain the original correspondence.
+           .. note:: Fields will be sorted before insertion. To ensure that _id
+                     is the first filled in all generated documents and that
+                     nested keys are consecutive, all keys will be sorted
+                     alphabetically before the insertions are performed. The
+                     corresponding types and data will be sorted the same way
+                     to maintain the original correspondence.
         """
         if types is None:
             types = [str(arr.data.dtype) for arr in data]
-        ids = numpy.array([], dtype="<V12")
 
         if len(data) != len(fields) or len(fields) != len(types):
             raise ValueError("fields, types, and data must all be the "
@@ -622,7 +621,7 @@ class Monary(object):
                                  "values")
 
         # To ensure that _id is the first key, the string "_id" is mapped
-        # to chr(0). This will put "_id" in front of "_a".
+        # to chr(0). This will put "_id" in front of any other field.
         zipped = sorted(zip(fields, types, data),
                         key=lambda x: x[0] if x != "_id" else chr(0))
         fields = [x[0] for x in zipped]
@@ -638,9 +637,7 @@ class Monary(object):
 
         collection = None
         try:
-            # Coldata will contain an extra unmasked column at the end. This
-            # final column will be filled with _id values and returned.
-            coldata = cmonary.monary_alloc_column_data(len(data) + 1,
+            coldata = cmonary.monary_alloc_column_data(len(data),
                                                        len(data[0]))
             for i, arr in enumerate(data):
                 cmonary_type, cmonary_type_arg, numpy_type = \
@@ -658,7 +655,8 @@ class Monary(object):
                                                cmonary_type, cmonary_type_arg,
                                                data_p, mask_p)
 
-            # Add on a column for the ids to be returned
+            # Create a new column for the ids to be returned
+            id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
             id_type = "id"
             if "_id" in fields:
                 id_type = types[fields.index("_id")]
@@ -666,29 +664,27 @@ class Monary(object):
                     get_monary_numpy_type(id_type)
 
             ids = numpy.zeros(len(data[0]), dtype=numpy_type)
-            cmonary.monary_set_column_item(coldata,
-                                           len(data),
+            cmonary.monary_set_column_item(id_data, 0,
                                            "_id".encode("utf-8"),
                                            cmonary_type, cmonary_type_arg,
-                                           ids.ctypes.data_as(c_void_p),
-                                           None)
+                                           ids.ctypes.data_as(c_void_p), None)
 
             collection = self._get_collection(db, coll)
             if collection is None:
                 raise ValueError("unable to get the collection")
 
-            inserted = cmonary.monary_insert(collection, coldata,
+            inserted = cmonary.monary_insert(collection, coldata, id_data,
                                              self._connection)
 
             if inserted < 1:
                 raise RuntimeError("insert failed after inserting %d "
                                    "documents" % abs(inserted))
+            return ids
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
             if collection is not None:
                 cmonary.monary_destroy_collection(collection)
-        return ids
 
     def aggregate(self, db, coll, pipeline, fields, types, limit=0,
                   do_count=True):
