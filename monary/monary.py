@@ -656,18 +656,23 @@ class Monary(object):
                                                data_p, mask_p)
 
             # Create a new column for the ids to be returned
-            id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
-            id_type = "id"
+            id_data = None
+            ids = None
             if "_id" in fields:
-                id_type = types[fields.index("_id")]
-            cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(id_type)
+                # If the user specifies "_id", it will be sorted to the front.
+                ids = numpy.copy(data[0])
+            else:
+                # Allocate a single collumn to return the generated ObjectIds.
+                id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
+                cmonary_type, cmonary_type_arg, numpy_type = \
+                        get_monary_numpy_type("id")
 
-            ids = numpy.zeros(len(data[0]), dtype=numpy_type)
-            cmonary.monary_set_column_item(id_data, 0,
-                                           "_id".encode("utf-8"),
-                                           cmonary_type, cmonary_type_arg,
-                                           ids.ctypes.data_as(c_void_p), None)
+                ids = numpy.zeros(len(data[0]), dtype=numpy_type)
+                cmonary.monary_set_column_item(id_data, 0,
+                                               "_id".encode("utf-8"),
+                                               cmonary_type, cmonary_type_arg,
+                                               ids.ctypes.data_as(c_void_p),
+                                               None)
 
             collection = self._get_collection(db, coll)
             if collection is None:

@@ -1135,6 +1135,8 @@ int monary_bson_from_columns(monary_column_item* columns,
  *
  * @param collection The MongoDB collection to insert to.
  * @param coldata The column data storing the values to insert.
+ * @param id_data The column data that will return the generated object ids,
+                  or Null if the '_id' field has been provided.
  * @param client The connection to the database.
  *
  * @return The number of documents inserted into the database.
@@ -1151,10 +1153,7 @@ int monary_insert(mongoc_collection_t* collection,
     bson_t document;
     bson_t reply;
     monary_column_item* citem;
-    monary_column_item* return_citem;
     mongoc_bulk_operation_t* bulk_op;
-    bool id_is_provided;
-    int base_len;
     int data_len;
     int i;
     int len;
@@ -1162,14 +1161,13 @@ int monary_insert(mongoc_collection_t* collection,
     int num_inserted;
     int row;
     uint32_t num_docs;
+    uint8_t* storage;
 
     // Sanity checks
     if (!collection || !coldata) {
         DEBUG("%s", "Given a NULL param.");
         return 0;
     }
-    id_is_provided = strcmp(coldata->columns->field, "_id") == 0;
-    return_citem = id_data->columns;
 
     bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
 
@@ -1179,15 +1177,27 @@ int monary_insert(mongoc_collection_t* collection,
 
     max_message_size = mongoc_client_get_max_message_size(client);
     DEBUG("Max message size: %d", max_message_size);
-    base_len = 60; // TODO something like `bulk_op->commands.element_size;`
     data_len = 0;
+
+    // Generate all ObjectId's in advance if the user has not specified "_id"
+    if (id_data) {
+        storage = id_data->columns->storage;
+        for (row = 0; row < coldata->num_rows; row++) {
+            bson_oid_init(&oid, NULL);
+            memcpy(storage, oid.bytes, sizeof(bson_oid_t));
+            // Move the storage pointer to the next 12 bytes.
+            storage += sizeof(bson_oid_t);
+        }
+        // Reset the storage pointer to the beggining.
+        storage = id_data->columns->storage;
+    }
 
     DEBUG("Inserting %d documents with %d keys.",
           coldata->num_rows, coldata->num_columns);
     for (row = 0; row < coldata->num_rows; row++) {
-        if (!id_is_provided) {
-            // If _id is not provided, generate one.
-            bson_oid_init(&oid, NULL);
+        if (id_data) {
+            // If _id is not provided, append the generated ObjectId.
+            bson_oid_init_from_data(&oid, storage + (row * sizeof(bson_oid_t)));
             BSON_APPEND_OID(&document, "_id", &oid);
         }
         if (!monary_bson_from_columns(coldata->columns, row, 0,
@@ -1196,17 +1206,24 @@ int monary_insert(mongoc_collection_t* collection,
             num_inserted *= -1;
             goto end;
         }
+        data_len += document.len;
+        mongoc_bulk_operation_insert(bulk_op, &document);
+        bson_reinit(&document);
 
-        if ((data_len + base_len + document.len) > max_message_size) {
-            num_docs = row - num_inserted;
+        // The C driver sends insert commands or OP_INSERT, depending on
+        // server version, in as few batches as possible. Based on our 48M
+        // max_message_size, roughly 1 batch for OP_INSERT, roughly 3 for
+        // insert commands.
+        if (data_len > max_message_size || row == (coldata->num_rows - 1)) {
+            num_docs = row + 1 - num_inserted;
             DEBUG("Inserting documents %d through %d, total data: %d",
-                  num_inserted + 1, row, data_len + base_len);
+                  num_inserted + 1, row + 1, data_len);
             if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
                 num_inserted += num_docs;
                 data_len = 0;
             } else {
                 DEBUG("Failed to insert documents %d through %d",
-                      num_inserted + 1, row);
+                      num_inserted + 1, row + 1);
                 if (error.message) {
                     DEBUG("Error message: %s", error.message);
                 }
@@ -1217,47 +1234,6 @@ int monary_insert(mongoc_collection_t* collection,
             bulk_op = mongoc_collection_create_bulk_operation(collection,
                                                               false, NULL);
             bson_reinit(&reply);
-        }
-
-        data_len += document.len;
-        mongoc_bulk_operation_insert(bulk_op, &document);
-
-        // Load _id's to be returned to the caller.
-        if (id_is_provided) {
-            bson_iter_init(&bsonit, &document);
-            if (bson_iter_find_descendant(&bsonit, return_citem->field, &descendant)) {
-                if (!monary_load_item(&descendant, return_citem, row)) {
-                    num_inserted *= -1;
-                    goto end;
-                }
-            } else {
-                num_inserted *= -1;
-                goto end;
-            }
-        } else {
-            memcpy((bson_oid_t *)(return_citem->storage) + row,
-                   &oid.bytes,
-                   sizeof(bson_oid_t));
-        }
-
-        bson_reinit(&document);
-    }
-    // Send the final batch.
-    if (num_inserted < coldata->num_rows) {
-        num_docs = coldata->num_rows - num_inserted;
-        DEBUG("Inserting documents %d through %d, total data: %d",
-              num_inserted + 1, coldata->num_rows, data_len + base_len);
-        if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
-            num_inserted += num_docs;
-            data_len = 0;
-        } else {
-            DEBUG("Failed to insert documents %d through %d",
-                  num_inserted + 1, coldata->num_rows);
-            if (error.message) {
-                DEBUG("Error message: %s", error.message);
-            }
-            num_inserted *= -1;
-            goto end;
         }
     }
 end:
