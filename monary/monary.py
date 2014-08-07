@@ -30,6 +30,8 @@ except ImportError:
 import numpy
 import bson
 
+import monary.database as database
+
 cmonary = None
 
 def _load_cmonary_lib():
@@ -290,6 +292,16 @@ class Monary(object):
         self._connection = None
         if not self.connect(host, port, username, password, database, options):
             raise ValueError("Misformatted Mongo URI.")
+
+    def __getattr__(self, name):
+        """Get a database by name.
+        """
+        return database.Database(self, name)
+
+    def __getitem__(self, name):
+        """Get a database by name.
+        """
+        return self.__getattr__(name)
 
     def connect(self, host="localhost", port=27017, username=None,
                 password=None, database=None, options={}):
