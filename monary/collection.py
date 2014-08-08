@@ -12,10 +12,10 @@ else:
     string_type = basestring
 
 
-class Collection():
+class Collection(object):
     """A MongoDB collection.
     """
-    def __init__(self, database, name, **kwargs):
+    def __init__(self, database, name):
         # Name sanitization.
         if not isinstance(name, string_type):
             raise TypeError("name must be an instance of %s" %
