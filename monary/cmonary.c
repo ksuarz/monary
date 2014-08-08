@@ -172,7 +172,17 @@ typedef struct
  * Holds the storage for an array of objects.
  *
  * @memb field The name of the field in the document.
+<<<<<<< Updated upstream
  * @memb type A monary_type_t containing data type information.
+=======
+ * @memb type The BSON type identifier, as specified by the Monary type enum.
+ * @memb subtype If type is an array, subtype indicates the kind of data held by
+ * the array. It is a programming error for subtype to have the value ``array``.
+ * @memb type_arg If type is binary, UTF-8, or document, type_arg points to an
+ * integer that specifies the width of the field in bytes. If type is an array,
+ * it should be a 0-terminated array of integers representing the dimensions of
+ * the array.
+>>>>>>> Stashed changes
  * @memb storage A pointer to the location of the "array" in memory. In the
  * Python side of Monary, this points to the start of the NumPy array.
  * @memb mask A pointer to the the "masked array." This is the internal
@@ -183,7 +193,13 @@ typedef struct
 typedef struct monary_column_item
 {
     char* field;
+<<<<<<< Updated upstream
     monary_type_t* type;
+=======
+    unsigned int type;
+    unsigned int subtype;
+    void* type_arg;
+>>>>>>> Stashed changes
     void* storage;
     unsigned char* mask;
 } monary_column_item;
@@ -283,6 +299,7 @@ int monary_set_column_item(monary_column_data* coldata,
                            unsigned int colnum,
                            const char* field,
                            unsigned int type,
+                           unsigned int subtype,
                            void* type_arg,
                            unsigned int subtype,
                            void* subtype_arg,

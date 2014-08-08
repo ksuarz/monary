@@ -118,10 +118,15 @@ def get_monary_numpy_type(orig_typename):
 
        :param str orig_typename: a common type name with optional argument
                                  (for fields with a size)
-       :returns: (type_num, type_arg, numpy_type)
+       :returns: (type_num, subtype_num, type_arg, numpy_type)
        :rtype: tuple
     """
     # process any type_arg that might be included
+    if orig_typename.startswith("array"):
+        vals = orig_typename.split(":", 1)
+        type_name, subtype = arg
+        # TODO
+
     if ':' in orig_typename:
         vals = orig_typename.split(':', 2)
         if len(vals) > 2:
@@ -145,7 +150,7 @@ def get_monary_numpy_type(orig_typename):
         numpy_type = "%s%i" % (numpy_type_code, type_arg)
     else:
         type_num, numpy_type = MONARY_TYPES[type_name]
-    return type_num, type_arg, numpy_type
+    return type_num, 0, type_arg, numpy_type
 
 def make_bson(obj):
     """Given a Python (JSON compatible) dictionary, returns a BSON string.
@@ -287,14 +292,14 @@ class Monary(object):
         self._connection = cmonary.monary_connect(uri)
         return (self._connection is not None)
 
-    def _make_column_data(self, fields, types, count):
+    def _make_column_data(self, fields, types, shape):
         """Builds the 'column data' structure used by the underlying cmonary code to
            populate the arrays.  This code must allocate the array objects, and provide
            their corresponding storage pointers and sizes to cmonary.
 
            :param fields: list of field names
            :param types: list of Monary type names
-           :param count: size of storage to be allocated
+           :param shape: shape of array, which determines allocation size
            
            :returns: (coldata, colarrays) where coldata is the cmonary
                      column data storage structure, and colarrays is a list of
