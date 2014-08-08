@@ -1188,7 +1188,7 @@ int monary_insert(mongoc_collection_t* collection,
             // Move the storage pointer to the next 12 bytes.
             storage += sizeof(bson_oid_t);
         }
-        // Reset the storage pointer to the beggining.
+        // Reset the storage pointer to the beginning.
         storage = id_data->columns->storage;
     }
 
