@@ -8,37 +8,27 @@ complete list of the possible pipeline operators, refer to the `aggregation
 framework operators
 <http://docs.mongodb.org/manual/reference/operator/aggregation/>`_.
 
+Note that you must have MongoDB 2.2 or later to use the aggregation pipeline.
+
 Setup
 -----
-This example assumes that the MongoDB daemon is running on the default host and
-port. You can use any test data you want to aggregate on; below is a sample
-script to populate the database with test data.
+This example assumes that **mongod** is running on the default host and port.
+You can use any test data you want to aggregate on; this example will use the
+MongoDB `zipcode data set <http://media.mongodb.org/zips.json>`_. Simply use
+**mongoimport** to import the collection into MongoDB.
 
-.. code-block:: python
+.. code-block:: bash
 
-    import random
+    $ mongoimport zips.json
 
-    from pymongo import MongoClient
+By default, it will be loaded to the database ``test`` under the collection name
+``zips``:
 
-    # The number of sample documents to use
-    TEST_RECORDS = 5000
+.. code-block:: javascript
 
-    client = MongoClient()
-    db = client.test
-
-    # Fake some sales data
-    products = ["apple", "banana", "orange"]
-    buyers = ["alice", "bob"]
-
-    # Insert some test documents
-    for i in range(TEST_RECORDS):
-        doc = {
-            "_id" : i,
-            "product" : random.choice(products),
-            "buyer" : random.choice(buyers),
-            "quantity" : random.randint(1, 4)
-        }
-        db.data.insert(doc)
+    > use test
+    switched to db test
+    > db.zips.find()
 
 
 Performing Aggregations
@@ -57,9 +47,8 @@ The `match operator
 equality test: it selects all documents where the specified key has the
 specified value.
 
-For example, we can create a pipeline that matches all documents where Alice has
-purchased something, then load a list containing all of the products she has
-bought::
+For example, we can create a pipeline that matches all zip codes in New York
+state::
 
     >>> pipeline = {"$match" : {"buyer" : "Alice"}}
     >>> result, = monary.aggregate("test", "data", pipeline, ["product"], ["string:7])
