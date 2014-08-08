@@ -139,14 +139,40 @@ void monary_destroy_collection(mongoc_collection_t* collection)
 }
 
 /**
+ * Contains type information for arrays.
+ *
+ * @memb subtype The type code for the data contained inside the array.
+ * @memb dims A pointer to a 0-terminated array of integers representing the
+ * dimensions of the array.
+ */
+typedef struct
+{
+    unsigned int subtype;
+    unsigned int* dims;
+} monary_array_info_t;
+
+/**
+ * Represents the data type of an array.
+ *
+ * @param type The Monary type identifier.
+ * @param type_arg If type is binary, string, or document, type_arg is an
+ * integer that specifies the width of the field in bytes. If type is array, it
+ * is a monary_array_info_t containing more array-specific information.
+ */
+typedef struct
+{
+    unsigned int type;
+    union {
+        int size;
+        monary_array_info_t info;
+    } type_arg;
+} monary_type_t;
+
+/**
  * Holds the storage for an array of objects.
  *
  * @memb field The name of the field in the document.
- * @memb type The BSON type identifier, as specified by the Monary type enum.
- * @memb type_arg If type is binary, UTF-8, or document, type_arg points to an
- * integer that specifies the width of the field in bytes. If type is an array,
- * it should be a 0-terminated array of integers representing the dimensions of
- * the array.
+ * @memb type A monary_type_t containing data type information.
  * @memb storage A pointer to the location of the "array" in memory. In the
  * Python side of Monary, this points to the start of the NumPy array.
  * @memb mask A pointer to the the "masked array." This is the internal
@@ -157,8 +183,7 @@ void monary_destroy_collection(mongoc_collection_t* collection)
 typedef struct monary_column_item
 {
     char* field;
-    unsigned int type;
-    void* type_arg;
+    monary_type_t* type;
     void* storage;
     unsigned char* mask;
 } monary_column_item;
@@ -225,6 +250,7 @@ int monary_free_column_data(monary_column_data* coldata)
     for(i = 0; i < coldata->num_columns; i++) {
         col = coldata->columns + i;
         if(col->field != NULL) { free(col->field); }
+        if(col->type != NULL) { free(col->type); }
     }
     free(coldata->columns);
     free(coldata);
@@ -246,8 +272,7 @@ int monary_free_column_data(monary_column_data* coldata)
  * be a 0-terminated array of integers representing the shape of the NumPy
  * array.
  * @param storage A pointer to the new location of the data in memory, which
- * cannot be NULL. Note that this does not free(3) the previous storage
- * pointer.
+ * cannot be NULL.
  * @param mask A pointer to the new masked array, which cannot be NULL. It is a
  * programming error to have a masked array different in length from the
  * storage array.
@@ -259,6 +284,8 @@ int monary_set_column_item(monary_column_data* coldata,
                            const char* field,
                            unsigned int type,
                            void* type_arg,
+                           unsigned int subtype,
+                           void* subtype_arg,
                            void* storage,
                            unsigned char* mask)
 {
@@ -278,6 +305,13 @@ int monary_set_column_item(monary_column_data* coldata,
 
     col->field = malloc(len + 1);
     strcpy(col->field, field);
+
+    col->type = malloc(sizeof(monary_type_t));
+    if (type == TYPE_ARRAY) {
+        col->type->type_arg.subtype = 
+    } else {
+        col->type->type_arg
+    }
     
     col->type = type;
     col->type_arg = type_arg;
