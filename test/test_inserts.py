@@ -15,7 +15,7 @@ import numpy.ma as ma
 import pymongo
 
 import monary
-from monary.monary import mvoid_to_bson_id, validate_insert_fields
+from monary.monary import mvoid_to_bson_id, validate_bson_fields
 
 PY3 = sys.version_info[0] >= 3
 
@@ -268,12 +268,12 @@ def test_insert_field_validation():
     ]
     for g in good:
         try:
-            validate_insert_fields(g)
+            validate_bson_fields(g)
         except ValueError:
             assert False, "%r should have been valid" % g
     for b in bad:
         try:
-            validate_insert_fields(b)
+            validate_bson_fields(b)
             assert False, "%r should not have been valid" % b
         except ValueError:
             pass

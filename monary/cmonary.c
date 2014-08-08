@@ -1049,7 +1049,7 @@ int monary_make_bson_value_t(bson_value_t* val,
 /**
  * Creates the bson document @parent from the given columns.
  *
- * @param columns A list of monary column items storing the values to insert
+ * @param columns A list of monary column items storing the values
  * @param row The row in which the current data is stored
  * @param col_start The column at which to start when appending values
  * @param col_end The column at which to end when appending values
@@ -1242,4 +1242,131 @@ end:
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk_op);
     return num_inserted;
+}
+
+/**
+ * Creates selectors from the given data and removes matching documents.
+ *
+ * @param collection The MongoDB collection to remove from.
+ * @param coldata The column data storing values to create remove selectors.
+ * @param client The connection to the database.
+ * @param just_one Whether to use remove_one or remove
+ *
+ * @return The number of documents removed from the database.
+ */
+int monary_remove(mongoc_collection_t* collection,
+                  monary_column_data* coldata,
+                  mongoc_client_t* client,
+                  bool just_one)
+{
+    bson_error_t error;
+    bson_iter_t bsonit;
+    bson_t reply;
+    bson_t selector;
+    monary_column_item* citem;
+    mongoc_bulk_operation_t* bulk_op;
+    int data_len;
+    int i;
+    int max_message_size;
+    int num_removed;
+    int num_selectors;
+    int row;
+    int selectors_used;
+
+
+    // Sanity checks
+    if (!collection || !coldata) {
+        DEBUG("%s", "Given a NULL param.");
+        return 0;
+    }
+
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+
+    bson_init(&selector);
+    bson_init(&reply);
+    num_removed = 0;
+    selectors_used = 0;
+
+    max_message_size = mongoc_client_get_max_message_size(client);
+    DEBUG("Max messgae size: %d", max_message_size);
+    data_len = 0;
+
+    DEBUG("Removing: %d selectors with %d keys.",
+          coldata->num_rows, coldata->num_columns);
+
+    // If remove was called with empty arrays, add an empty BSON.
+    if (coldata->num_rows == 0) {
+        if (just_one) {
+            mongoc_bulk_operation_remove_one(bulk_op, &selector);
+        } else {
+            mongoc_bulk_operation_remove(bulk_op, &selector);
+        }
+        data_len += selector.len;
+    }
+
+    // Start row at -1 so the empty document will be sent if
+    // `coldata->num_rows` is 0.
+    for (row = -1; row < (int)coldata->num_rows; row++) {
+        if (row != -1) {
+            if (!monary_bson_from_columns(coldata->columns, row, 0,
+                                          coldata->num_columns,
+                                          &selector, 0, 0)) {
+                DEBUG("Failed to make BSON from row %d", row);
+                num_removed *= -1;
+                num_removed--;
+                goto end;
+            }
+
+            data_len += selector.len;
+            if (just_one) {
+                mongoc_bulk_operation_remove_one(bulk_op, &selector);
+            } else {
+                mongoc_bulk_operation_remove(bulk_op, &selector);
+            }
+            bson_reinit(&selector);
+        }
+
+        // The C driver sends commands in as few batches as possible. See
+        // the more detailed comment in ``monary_insert``.
+        if (data_len > max_message_size || row == (coldata->num_rows - 1) ||
+            coldata->num_rows == 0) {
+            num_selectors = row - selectors_used;
+            DEBUG("Removing with selectors %d through %d, total data: %d",
+                  selectors_used + 1, row + 1, data_len);
+            if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
+                selectors_used += num_selectors;
+                data_len = 0;
+
+                // Load the number of documnets removed from server reply
+                if (bson_iter_init_find(&bsonit, &reply, "nRemoved") &&
+                    BSON_ITER_HOLDS_INT32(&bsonit)) {
+                    num_removed += bson_iter_int32(&bsonit);
+                } else {
+                    DEBUG("Server reply did not contains %s", "nRemoved");
+                    num_removed *= -1;
+                    num_removed--;
+                    goto end;
+                }
+            } else {
+                DEBUG("Failed to remove using selectors %d through %d",
+                      selectors_used + 1, row + 1);
+                if (error.message) {
+                    DEBUG("Error message: %s", error.message);
+                }
+                num_removed *= -1;
+                num_removed--;
+                goto end;
+            }
+            mongoc_bulk_operation_destroy(bulk_op);
+            bulk_op = mongoc_collection_create_bulk_operation(collection,
+                                                              false, NULL);
+            bson_reinit(&reply);
+        }
+    }
+end:
+    DEBUG("Removed %d documents", num_removed);
+    bson_destroy(&selector);
+    bson_destroy(&reply);
+    mongoc_bulk_operation_destroy(bulk_op);
+    return num_removed;
 }

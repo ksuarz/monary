@@ -55,6 +55,7 @@ CTYPE_CODES = {
     "I": c_int,       # int
     "U": c_uint,      # unsigned int
     "L": c_long,      # long
+    "B": c_bool,      # bool
     "0": None,        # None/void
 }
 
@@ -75,7 +76,8 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPPP:I"
+    "monary_insert:PPPP:I",
+    "monary_remove:PPPB:I"
 ]
 
 MAX_COLUMNS = 1024
@@ -207,8 +209,28 @@ def mvoid_to_bson_id(mvoid):
         return bson.ObjectId(str(mvoid))
 
 
-def validate_insert_fields(fields):
-    """Validate field names for insertion.
+def sort_fields_types_data(fields, types, data):
+    """Sort the fields alphabetically (except for "_id" which will always come
+       first) and enusre that the corresponding types and data will be sorted
+       the same way to maintain the original correspondence.
+
+       :param field: list of bson field names
+       :param types: corresponding list of types
+       :param data: corresponding list of data
+
+       :returns: A 3-tuple of (fields, types, data) but sorted
+       :rtype: tuple
+    """
+    zipped = sorted(zip(fields, types, data),
+                    key=lambda x: x[0] if x != "_id" else chr(0))
+    f = [x[0] for x in zipped]
+    t = [x[1] for x in zipped]
+    d = [x[2] for x in zipped]
+    return (f, t, d)
+
+
+def validate_bson_fields(fields, allow_dollar=False):
+    """Validate field names for bson creation.
 
        :param fields: a list of field names
 
@@ -220,7 +242,7 @@ def validate_insert_fields(fields):
     for f in fields:
         if f.endswith('.'):
             raise ValueError("invalid fieldname: %r, must not end in '.'" % f)
-        if '$' in f:
+        if not allow_dollar and '$' in f:
             raise ValueError("invalid fieldname: %r, must not contain '$'" % f)
 
     if len(fields) != len(set(fields)):
@@ -613,20 +635,14 @@ class Monary(object):
         if len(fields) == 0:
             raise ValueError("cannot do an empty insert")
 
-        validate_insert_fields(fields)
+        validate_bson_fields(fields)
         if "_id" in fields:
             idx = fields.index("_id")
             if data[idx].mask.any():
                 raise ValueError("the _id array must not have any masked "
                                  "values")
 
-        # To ensure that _id is the first key, the string "_id" is mapped
-        # to chr(0). This will put "_id" in front of any other field.
-        zipped = sorted(zip(fields, types, data),
-                        key=lambda x: x[0] if x != "_id" else chr(0))
-        fields = [x[0] for x in zipped]
-        types = [x[1] for x in zipped]
-        data = [x[2] for x in zipped]
+        fields, types, data = sort_fields_types_data(fields, types, data)
 
         for t in types:
             if t.split(":")[0] not in _SUPPORTED_TYPES:
@@ -798,6 +814,78 @@ class Monary(object):
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+
+    def remove(self, db, coll, data, fields, types=None, just_one=False):
+        """Performs a bulk removal based on data from arrays.
+
+           :param db: name of database
+           :param coll: name of the collection on which to perform the remove
+           :param data: list of numpy masked arrays to create the selectors
+           :param fields: list of field names for the selectors
+           :param types: (optional) corresponding list of field types
+           :param just_one: (optional) specify whether to remove multiple or
+                            just one document per selector
+
+           :returns: the number of documents removed
+           :rtype: int
+        """
+        if types is None:
+            types = [str(arr.data.dtype) for arr in data]
+
+        if len(data) != len(fields) or len(fields) != len(types):
+            raise ValueError("fields, types, and data must all be the "
+                             "same length")
+
+        validate_bson_fields(fields, allow_dollar=True)
+
+        fields, types, data = sort_fields_types_data(fields, types, data)
+
+        for t in types:
+            if t.split(":")[0] not in _SUPPORTED_TYPES:
+                raise ValueError("cannot remove type %r" % t)
+
+        if len(set(map(len, data))) > 1:
+            raise ValueError("all given arrays must be of the same length")
+
+        collection = None
+        try:
+            num_rows = len(data[0]) if len(data) > 0 else 0
+            coldata = cmonary.monary_alloc_column_data(len(data),
+                                                       num_rows)
+            for i, arr in enumerate(data):
+                cmonary_type, cmonary_type_arg, numpy_type = \
+                    get_monary_numpy_type(types[i])
+
+                if arr.data.dtype != numpy_type:
+                    raise ValueError("error, wrong type specified. Given:"
+                                     " %r Expected: %r"
+                                     "" % (arr.data.dtype, numpy_type))
+
+                data_p = arr.data.ctypes.data_as(c_void_p)
+                mask_p = arr.mask.ctypes.data_as(c_void_p)
+                cmonary.monary_set_column_item(coldata, i,
+                                               fields[i].encode("utf-8"),
+                                               cmonary_type, cmonary_type_arg,
+                                               data_p, mask_p)
+
+            collection = self._get_collection(db, coll)
+            if collection is None:
+                raise ValueError("unable to get the collection")
+
+            removed = cmonary.monary_remove(collection,
+                                            coldata,
+                                            self._connection,
+                                            just_one)
+
+            if removed < 0:
+                raise RuntimeError("remove failed after removing %d "
+                                   "documents" % (abs(removed) - 1))
+            return removed
+        finally:
+            if coldata is not None:
+                cmonary.monary_free_column_data(coldata)
+            if collection is not None:
+                cmonary.monary_destroy_collection(collection)
 
     def close(self):
         """Closes the current connection, if any."""
