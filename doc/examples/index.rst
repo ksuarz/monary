@@ -16,7 +16,6 @@ started by issuing the following in a shell::
     aggregation
     binary
     block-query
-    connecting
     insert
     query
     string

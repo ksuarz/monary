@@ -2,22 +2,29 @@ Type Reference
 ==============
 The following data types are supported:
 
-* signed and unsigned integers (8-bit, 16-bit, 32-bit, and 64-bit) 
-* IEEE single-precision floating point (32-bit) 
-* IEEE double-precision floating point (64-bit)
-* boolean
-* `ObjectID <http://dochub.mongodb.org/core/objectids>`_
-* UTC datetime 
-* timestamp 
-* binary
-* UTF-8 string
-* BSON document 
-* type 
-* size 
-* length 
+ * ``id``: `ObjectID <http://dochub.mongodb.org/core/objectids>`_
+ * ``bool``: boolean
+ * ``int8``: signed two's compliment 8-bit integer
+ * ``int16``: signed two's compliment 16-bit integer
+ * ``int32``: signed two's compliment 32-bit integer
+ * ``int64``: signed two's compliment 64-bit integer
+ * ``uint8``: unsigned 8-bit integer
+ * ``uint16``: unsigned 16-bit integer
+ * ``uint32``: unsigned 32-bit integer
+ * ``uint64``: unsigned 64-bit integer
+ * ``float32``: IEEE 754 single-precision (32-bit) floating point value 
+ * ``float64``: IEEE 754 single-precision (64-bit) floating point value
+ * ``date``: UTC datetime
+ * ``timestamp``: `Timestamp <http://docs.mongodb.org/manual/reference/bson-types/#timestamps>`_
+ * ``string``: UTF-8 string
+ * ``binary``: binary data
+ * ``bson``: BSON document
+ * ``type``: <see below>
+ * ``size``: <see below>
+ * ``length``: <see below>
 
-All types are implemented in C; thus, type casting follows the rules of the C
-standard.
+All types are implemented in C, thus type conversions follows the rules of the
+C standard.
 
 .. seealso::
 
@@ -72,10 +79,9 @@ Strings
 .......
 All strings in MongoDB are encoded in UTF-8. When performing a find query on
 strings, you must also input the lengths of the strings in bytes. For a regular
-ASCII string, the length is the number of characters plus one for the
-terminating ``NUL`` character. Characters with higher-order UTF-8 encodings may
-occupy more space. You can use Monary to query for the strings' actual size in
-bytes to determine what size to use.
+ASCII string, the length is the number of characters. Characters with
+higher-order UTF-8 encodings may occupy more space. You can use Monary to query
+for the strings' actual size in bytes to determine what size to use.
 
 Find queries return lists of ``numpy.string_`` objects.
 
@@ -94,14 +100,14 @@ how it is stored in MongoDB.
 
 Here is a list of selected type codes, as per the specification:
 
-- 1 : double
-- 2 : string
-- 3 : (sub)document
-- 4 : array
-- 5 : binary
-- 7 : ObjectID
-- 8 : boolean
-- 9 : UTC datetime
+-  1 : double
+-  2 : string
+-  3 : (sub)document
+-  4 : array
+-  5 : binary
+-  7 : ObjectID
+-  8 : boolean
+-  9 : UTC datetime
 - 16 : 32-bit integer
 - 17 : timestamp
 - 18 : 64-bit integer
@@ -118,7 +124,7 @@ do not have a defined Monary size.
 
 Length
 ......
-For UTF-8 strings and Javascript code, "length" refers to the string length
-(not including the terminating NUL character); for arrays, the number of
-elements; and for subdocuments, the number of key-value pairs. No other types
-have a defined Monary length.
+For ASCII/UTF-8 strings and Javascript code, "length" refers to the string
+length (the same as ``len`` on a string); for arrays, the number of elements;
+and for documents, the number of key-value pairs. No other types have a defined
+Monary length.

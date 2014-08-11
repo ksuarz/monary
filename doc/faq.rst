@@ -47,7 +47,7 @@ depending on what type the query asks for::
                  mask = [False  True],
            fill_value = 99999)
     ]
-    >>> m.query("test", "foo", {}, ["a"], ["string:6"], sort="sequence")
+    >>> m.query("test", "foo", {}, ["a"], ["string:5"], sort="sequence")
     [masked_array(data = [-- 'hello'],
                  mask = [ True False],
            fill_value = N/A)
@@ -101,10 +101,10 @@ How do I retrieve strings data using Monary?
 --------------------------------------------
 Internally, all strings are `C strings
 <http://en.wikipedia.org/wiki/C_string#Definitions>`_.  To specify a string
-type, you must also indicate the size of the string **including** the
-terminating ``NUL`` character.::
+type, you must also indicate the size of the string (not including the
+terminating ``NUL`` character)::
 
-    >>> m.query("test", "foo", {}, ["mystr"], ["string:4"])
+    >>> m.query("test", "foo", {}, ["mystr"], ["string:3"])
     [masked_array(data = ['foo' 'bar' 'baz'],
                  mask = [False False False],
            fill_value = N/A)
@@ -172,4 +172,4 @@ This yields the expected type code::
 
 .. seealso::
 
-    `ECMAScript Number Type <Javahttp://bclary.com/2004/11/07/#a-4.3.20>`_
+    `ECMAScript Number Type <http://bclary.com/2004/11/07/#a-4.3.20>`_
