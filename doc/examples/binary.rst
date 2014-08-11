@@ -50,7 +50,7 @@ To find the size of the data in bytes, we use the ``size`` type::
 
     >>> from monary import Monary
     >>> m = Monary()
-    >>> [sizes] = m.query("test", "data", {}, ["bindata"], ["size"])
+    >>> sizes, = m.query("test", "data", {}, ["bindata"], ["size"])
     >>> sizes
     masked_array(data = [128L 64L 100L ..., 255L 255L 255L],
                  mask = [False False False ..., False False False],
@@ -70,7 +70,8 @@ We can get the maximum image size with ``numpy.amax``::
 
 Finally, we can issue a query command to get pointers to the binary data::
 
-    >>> [data] = m.query("test", "data", {}, ["bindata"], ["binary:%d" % max_size])
+    >>> data, = m.query("test", "data", {},
+    ...                 ["bindata"], ["binary:%d" % max_size])
     >>> data
     masked_array(data = [<read-write buffer ptr 0x7f8a58421b50, size 255 at 0x105b6deb0> ...],
                  mask = [False ...]

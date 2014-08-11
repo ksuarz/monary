@@ -5,9 +5,9 @@ This example demonstrates the use of Monary's ``block_query`` command.
 
 ``block_query`` functions similarly to ``query``. The main difference is that
 ``block_query`` returns a generator. Furthermore, all but the last NumPy masked
-arrays that block_query returns will be overwritten as the user iterates through
-the results. This allows users to process unlimited or unknown amounts of data
-with a fixed amount of memory.
+arrays that block_query returns will be overwritten as the user iterates
+through the results. This allows users to process unlimited or unknown amounts
+of data with a fixed amount of memory.
 
 Setup
 -----
@@ -37,8 +37,8 @@ Using Block Query
 -----------------
 To perform a block query, first create a Monary connection::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
 
 Now we query the database, specifying also how many results we want per block::
 

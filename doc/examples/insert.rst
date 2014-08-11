@@ -49,8 +49,8 @@ Using Monary Insert
 Let's first get all the raw test data into Numpy arrays with Monary::
 
     >>> import numpy as np
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
     >>> ids, midterm, final = \
     ...     m.query("monary_students", "raw", {},
     ...             ["student_id",
@@ -84,7 +84,8 @@ Finally, we insert the results to the database::
     ...                ["student_id", "grades.overall", "grades.midterm",
     ...                 "grades.final_exam"],
     ...                ["string:14"] + ["float64"] * 3)
-    >>> oids = list(map(monary.monary.mvoid_to_bson_id, ids))
+    >>> from monary.monary import mvoid_to_bson_id
+    >>> oids = list(map(mvoid_to_bson_id, ids))
     >>> oids[0]
     ObjectId('53dba51e61155374af671dc1')
 

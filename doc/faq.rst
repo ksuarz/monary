@@ -3,13 +3,14 @@ Frequently Asked Questions
 
 .. contents::
 
-.. _monary-inserts:
+.. _monary-crud:
 
-Can Monary insert documents into MongoDB?
------------------------------------------
-Though there may be support for bulk inserts from arrays into MongoDB in the
-future, for now Monary can only retrieve data. It cannot perform any inserts. In
-the meantime, use `PyMongo <http://api.mongodb.org/python/current/>`_.
+Can Monary do Removes, Updates, and/or Upserts?
+-----------------------------------------------
+Though there will soon be support for bulk removes, updates, and upserts from
+arrays into MongoDB, for now Monary can only retrieve and store data. It cannot
+perform any updates or removals. In the meantime, you can use
+`PyMongo <http://api.mongodb.org/python/current/>`_.
 
 .. _masked-values:
 
@@ -39,8 +40,8 @@ shell:
 Because there is a type mismatch for the field "a", some values will be masked
 depending on what type the query asks for::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary()
+    >>> m = Monary()
     >>> m.query("test", "foo", {}, ["a"], ["int32"], sort="sequence")
     [masked_array(data = [1 --],
                  mask = [False  True],
@@ -52,6 +53,25 @@ depending on what type the query asks for::
            fill_value = N/A)
     ]
 
+.. _mvoid-array:
+
+How does monary deal with ObjectIds?
+------------------------------------
+When querying for ``_id``'s or when inserting documents, you might end up with
+ObejectIds stored in a numpy array. This may look like a nested array, but the
+data type of the array is ``"<V12"``, and each individual element is of type
+``numpy.ma.core.mvoid``. If you would like this as a
+``bson.objectid.ObjectId``, it can be done like this::
+
+    >>> from monary import Monary
+    >>> with Monary() as m:
+    ...     ids = m.query("db", "col", {}, ["_id"], ["id"])
+
+    >>> from monary.monary import mvoid_to_bson_id
+    >>> oids = list(map(mvoid_to_bson_id, ids))
+    >>> oids[0]
+    ObjectId('53dba51e61155374af671dc1')
+
 .. _data-types:
 
 What if I don't know what type of data I want from MongoDB?
@@ -60,8 +80,8 @@ MongoDB has very flexible schemas; a consequence of this is that documents in
 the same collection can have fields of different types. To infer the type of
 data for a certain field name, specify the type of "type"::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
     >>> m.query("test", "foo", {}, ["a"], ["type"])
     [masked_array(data = [16 2]
                  mask = [False False],

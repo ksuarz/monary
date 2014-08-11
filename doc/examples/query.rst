@@ -31,8 +31,8 @@ Using Query
 -----------
 To perform a query, first create a Monary connection::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
 
 Now we query the database, specifying the keys we want from the mongo documents
 and what type we want the returned data to be::

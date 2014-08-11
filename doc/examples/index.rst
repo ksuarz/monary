@@ -13,11 +13,11 @@ started by issuing the following in a shell::
 .. toctree::
     :maxdepth: 1
 
-    connecting
-    query
-    block-query
-    insert
+    aggregation
     binary
+    block-query
+    connecting
+    insert
+    query
     string
     timestamp
-    aggregation

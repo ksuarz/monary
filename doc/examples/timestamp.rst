@@ -26,8 +26,8 @@ Finding Timestamp Data
 
 Next we use :doc:`query </examples/query>` to get back our data::
 
-    >>> import monary
-    >>> m = monary.Monary()
+    >>> from monary import Monary
+    >>> m = Monary()
     >>> time_stamps, = m.query("test", "data", {},
     ...                        ["ts"], ["timestamp"])
 

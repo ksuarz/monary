@@ -19,16 +19,26 @@ MongoDB `zipcode data set <http://media.mongodb.org/zips.json>`_. Simply use
 
 .. code-block:: bash
 
-    $ mongoimport zips.json
+    $ mongoimport --db zips --collection data zips.json
 
-By default, it will be loaded to the database ``test`` under the collection name
-``zips``:
+The data set will be loaded to the database ``zips`` under the collection
+``data``:
 
 .. code-block:: javascript
 
-    > use test
-    switched to db test
-    > db.zips.find()
+    > use zips
+    switched to db zips
+    > db.data.find().limit(1).pretty()
+    {
+        "_id" : "01001",
+        "city" : "AGAWAM",
+        "loc" : [
+            -72.622739,
+            42.070206
+        ],
+        "pop" : 15338,
+        "state" : "MA"
+    }
 
 
 Performing Aggregations
@@ -40,19 +50,37 @@ pipeline.
 For convenience, you may also pass a dict containing a single aggregation
 operation if your pipeline contains only one stage.
 
-$match
-......
-The `match operator
-<http://docs.mongodb.org/manual/reference/operator/aggregation/match/>`_ is an
-equality test: it selects all documents where the specified key has the
-specified value.
+This example will show all of the states in the dataset and their populations::
 
-For example, we can create a pipeline that matches all zip codes in New York
-state::
-
-    >>> pipeline = {"$match" : {"buyer" : "Alice"}}
-    >>> result, = monary.aggregate("test", "data", pipeline, ["product"], ["string:7])
-    >>> result
-    masked_array(data = ['orange' 'orange' 'banana' ..., 'apple' 'banana' 'orange'],
-                 mask = [False False False ..., False False False],
-                        fill_value = N/A)]])
+    >>> from monary import Monary
+    >>> m = Monary()
+    >>> pipeline = [{"$group" : {"_id" : "$state",
+    ...                          "totPop" : {"$sum" : "$pop"}}}]
+    >>> states, population = m.aggregate("zips", "data",
+    ...                                  pipeline,
+    ...                                  ["_id", "totPop"],
+    ...                                  ["string:2", "int64"])
+    >>> strs = list(map(lambda x: x.decode("utf-8"), states))
+    >>> list("%s: %d" % (state, pop)
+             for (state, pop) in zip(strs, population))
+    ['WA: 4866692',
+     'HI: 1108229',
+     'CA: 29754890',
+     'OR: 2842321',
+     'NM: 1515069',
+     'UT: 1722850',
+     'OK: 3145585',
+     'LA: 4217595',
+     'NE: 1578139',
+     'TX: 16984601',
+     'MO: 5110648',
+     'MT: 798948',
+     'ND: 638272',
+     'AK: 544698',
+     'SD: 695397',
+     'DC: 606900',
+     'MN: 4372982',
+     'ID: 1006749',
+     'KY: 3675484',
+     'WI: 4891769',
+     ...]
