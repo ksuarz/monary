@@ -18,5 +18,6 @@ started by issuing the following in a shell::
     block-query
     insert
     query
+    remove
     string
     timestamp
