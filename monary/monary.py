@@ -818,6 +818,20 @@ class Monary(object):
     def remove(self, db, coll, data, fields, types=None, just_one=False):
         """Performs a bulk removal based on data from arrays.
 
+           This is a bulk remove, so selectors for this are not the same as in
+           the Mongo shell. If you have a numpy array of ObjectIds, you can
+           remove all of the documents that have those Ids like this:
+           ``client.remove("db", "col", ["_id"], ids, ["id"])``
+           You can also remove every document in the database like this:
+           ``client.remove("db", "col", [], [])``
+
+           Notice that the types are optional; this is because types like
+           ObjectId, binary, and BSON, are all stored as void pointers and thus
+           an array of void pointers has an ambiguous type. This also applies
+           to datetimes and timestamps which are stored as 64-bit integer. The
+           type of any array of bools, ints, uints, or floats can be inferred.
+           This behavior is identical to that of ``insert``.
+
            :param db: name of database
            :param coll: name of the collection on which to perform the remove
            :param data: list of numpy masked arrays to create the selectors
