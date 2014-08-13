@@ -1309,8 +1309,6 @@ int monary_remove(mongoc_collection_t* collection,
         coldata->num_rows = 1;
     }
 
-    // Start row at -1 so the empty document will be sent if
-    // `coldata->num_rows` is 0.
     for (row = 0; row < coldata->num_rows; row++) {
         if (!monary_bson_from_columns(coldata->columns, row, 0,
                                       coldata->num_columns,

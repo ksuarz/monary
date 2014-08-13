@@ -211,7 +211,7 @@ def mvoid_to_bson_id(mvoid):
 
 def sort_fields_types_data(fields, types, data):
     """Sort the fields alphabetically (except for "_id" which will always come
-       first) and enusre that the corresponding types and data will be sorted
+       first) and ensure that the corresponding types and data will be sorted
        the same way to maintain the original correspondence.
 
        :param field: list of bson field names
@@ -862,7 +862,7 @@ class Monary(object):
             raise ValueError("all given arrays must be of the same length")
 
         if len(data) > 0 and len(data[0]) == 0:
-            raise ValueError("give an empty masked array of values to remove")
+            raise ValueError("given an empty masked array of values to remove")
 
         collection = None
         try:
@@ -874,9 +874,9 @@ class Monary(object):
                     get_monary_numpy_type(types[i])
 
                 if arr.data.dtype != numpy_type:
-                    raise ValueError("error, wrong type specified. Given:"
-                                     " %r Expected: %r"
-                                     "" % (arr.data.dtype, numpy_type))
+                    raise ValueError(
+                        "error, wrong type specified. Given: %r Expected: %r" %
+                        (arr.data.dtype, numpy_type))
 
                 data_p = arr.data.ctypes.data_as(c_void_p)
                 mask_p = arr.mask.ctypes.data_as(c_void_p)
