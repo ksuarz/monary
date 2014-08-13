@@ -1371,3 +1371,205 @@ end:
     mongoc_bulk_operation_destroy(bulk_op);
     return num_removed;
 }
+
+/**
+ * Loads the server reply values after sending an update..
+ *
+ * @param bsonit The iterator containing the array of documents with _id keys.
+ * @param id_citem The column in which to put the ids returned from the server.
+ * @param offset The offset into the id_citem at which to start writing ids.
+ */
+void monary_load_server_reply_oids(bson_iter_t* bsonit,
+                                   monary_column_item* id_citem,
+                                   int offset)
+{
+    bson_iter_t array_iter;
+    bson_iter_t document_iter;
+    int index;
+    int success;
+
+    if (!BSON_ITER_HOLDS_ARRAY(bsonit)) {
+        return;
+    }
+    if (!bson_iter_recurse(bsonit, &array_iter)) {
+        return;
+    }
+    while (bson_iter_next(&array_iter)) {
+        if (bson_iter_recurse(&array_iter, &document_iter) &&
+            bson_iter_find(&document_iter, "index")) {
+            if (BSON_ITER_HOLDS_INT32(&document_iter)) {
+                index = bson_iter_int32(&document_iter);
+            } else {
+                continue;
+            }
+            if (!bson_iter_find(&document_iter, "_id")) {
+                continue;
+            }
+            success = monary_load_item(&document_iter, id_citem, index + offset);
+            // Unmask on success
+            id_citem->mask[index + offset] = !success;
+        }
+    }
+}
+
+/**
+ * Loads the server reply values after sending an update..
+ *
+ * @param reply The server's reply BSON.
+ * @param num_updated A pointer to the total number of documents updated.
+ * @param num_upserted A pointer to the total number of documents upserted.
+ * @param id_citem The column in which to put the returned ids on upserts.
+ * @param offset The offset into the id_citem (number of selectors used), used
+ *               to determine where to write the new ids on upserts.
+ */
+void monary_load_server_reply_update(bson_t* reply,
+                                     int* num_updated,
+                                     int* num_upserted,
+                                     monary_column_item* id_citem,
+                                     int offset)
+{
+    bson_iter_t bsonit;
+
+    // Load the number of documents removed from server reply
+    if (num_updated && bson_iter_init_find(&bsonit, reply, "nModified")) {
+        if (BSON_ITER_HOLDS_INT32(&bsonit)) {
+            *num_updated += bson_iter_int32(&bsonit);
+        }
+    }
+    if (num_upserted && bson_iter_init_find(&bsonit, reply, "nUpserted")) {
+        if (BSON_ITER_HOLDS_INT32(&bsonit)) {
+            *num_upserted += bson_iter_int32(&bsonit);
+        }
+    }
+    if (id_citem && bson_iter_init_find(&bsonit, reply, "upserted")) {
+        monary_load_server_reply_oids(&bsonit, id_citem, offset);
+    }
+}
+
+/**
+ * Creates selectors and documents from the given data and performs updates.
+ *
+ * @param collection The MongoDB collection to update.
+ * @param selector_data The column data storing values to create selectors.
+ * @param document_data The column data storing values to create documents.
+ * @param client The connection to the database.
+ * @param upsert Whether to use upsert or not.
+ *
+ * @return The number of documents removed from the database.
+ */
+void monary_update(mongoc_collection_t* collection,
+                  monary_column_data* selector_data,
+                  monary_column_data* document_data,
+                  monary_column_data* id_data,
+                  int* num_updates_upserts,
+                  mongoc_client_t* client,
+                  bool upsert,
+                  bool multi)
+{
+    bson_error_t error;
+    bson_t selector;
+    bson_t document;
+    bson_t reply;
+    monary_column_item* citem;
+    monary_column_item* return_citem;
+    mongoc_bulk_operation_t* bulk_op;
+    int base_len;
+    int data_len;
+    int i;
+    int len;
+    int max_message_size;
+    int* num_updated = num_updates_upserts;
+    int* num_upserted = num_updates_upserts + 1;
+    int selectors_used;
+    int row;
+    uint32_t num_selectors;
+
+    // Sanity checks
+    if (!collection || !selector_data || !document_data) {
+        DEBUG("%s", "Given a NULL param.");
+        return;
+    }
+    if (upsert) {
+        if (!id_data) {
+            DEBUG("%s", "id_data cannot be NULL on an upsert.");
+            return;
+        }
+        return_citem = id_data->columns;
+    }
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+
+    bson_init(&selector);
+    bson_init(&document);
+    bson_init(&reply);
+    selectors_used = 0;
+
+    max_message_size = mongoc_client_get_max_message_size(client);
+    DEBUG("Max message size: %d", max_message_size);
+    base_len = 60; // TODO something like `bulk_op->commands.element_size;`
+    data_len = 0;
+
+    DEBUG("Updating: %d selectors with %d keys, %d documents with %d keys",
+          selector_data->num_rows, selector_data->num_columns,
+          document_data->num_rows, document_data->num_columns);
+
+
+    for (row = 0; row < document_data->num_rows; row++) {
+        if (!monary_bson_from_columns(selector_data->columns, row, 0,
+                                      selector_data->num_columns,
+                                      &selector, 0, 0) ||
+            !monary_bson_from_columns(document_data->columns, row, 0,
+                                      document_data->num_columns,
+                                      &document, 0, 0)) {
+            DEBUG("Failed to make BSON document from row %d", row);
+            *num_updated *= -1;
+            (*num_updated)--;
+            goto end;
+        }
+
+        data_len += selector.len + document.len;
+        if (multi) {
+            mongoc_bulk_operation_update(bulk_op, &selector,
+                                         &document, upsert);
+        } else {
+            mongoc_bulk_operation_update_one(bulk_op, &selector,
+                                             &document, upsert);
+        }
+
+        bson_reinit(&selector);
+        bson_reinit(&document);
+
+        if (data_len > max_message_size || row == (document_data->num_rows - 1)) {
+            num_selectors = row - selectors_used;
+            DEBUG("Updating with selectors/documents %d through %d,"
+                  "total data: %d", selectors_used + 1, row + 1,
+                  data_len);
+            if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
+                monary_load_server_reply_update(&reply, num_updated,
+                                                num_upserted,
+                                                return_citem,
+                                                selectors_used);
+                selectors_used += num_selectors;
+                data_len = 0;
+            } else {
+                DEBUG("%s", "Failed to update");
+                if (error.message) {
+                    DEBUG("Error message: %s", error.message);
+                }
+                *num_updated *= -1;
+                (*num_updated)--;
+                goto end;
+            }
+            mongoc_bulk_operation_destroy(bulk_op);
+            bulk_op = mongoc_collection_create_bulk_operation(collection,
+                                                              false, NULL);
+            bson_reinit(&reply);
+        }
+    }
+end:
+    DEBUG("Updated %d documents, upserted %d documents",
+          *num_updated, *num_upserted);
+    bson_destroy(&selector);
+    bson_destroy(&document);
+    bson_destroy(&reply);
+    mongoc_bulk_operation_destroy(bulk_op);
+}

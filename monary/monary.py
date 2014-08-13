@@ -53,6 +53,7 @@ CTYPE_CODES = {
     "P": c_void_p,    # pointer
     "S": c_char_p,    # string
     "I": c_int,       # int
+    "i": c_int * 2,   # int array
     "U": c_uint,      # unsigned int
     "L": c_long,      # long
     "B": c_bool,      # bool
@@ -77,7 +78,8 @@ FUNCDEFS = [
     "monary_load_query:P:I",
     "monary_close_query:P:0",
     "monary_insert:PPPP:I",
-    "monary_remove:PPPB:I"
+    "monary_remove:PPPB:I",
+    "monary_update:PPPPiPBB:0"
 ]
 
 MAX_COLUMNS = 1024
@@ -128,6 +130,24 @@ _SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
                     "uint8", "uint16", "uint32", "uint64", "float32",
                     "float64", "date", "id", "timestamp", "string",
                     "binary", "bson"]
+
+
+def _load_coldata_from_arrays(coldata, data, fields, types):
+    for i, arr in enumerate(data):
+        cmonary_type, cmonary_type_arg, numpy_type = \
+            get_monary_numpy_type(types[i])
+
+        if arr.data.dtype != numpy_type:
+            raise ValueError(
+                "error, wrong type specified. Given: %r Expected: %r" %
+                (arr.data.dtype, numpy_type))
+
+        data_p = arr.data.ctypes.data_as(c_void_p)
+        mask_p = arr.mask.ctypes.data_as(c_void_p)
+        cmonary.monary_set_column_item(coldata, i,
+                                       fields[i].encode("utf-8"),
+                                       cmonary_type, cmonary_type_arg,
+                                       data_p, mask_p)
 
 
 def get_monary_numpy_type(orig_typename):
@@ -655,21 +675,7 @@ class Monary(object):
         try:
             coldata = cmonary.monary_alloc_column_data(len(data),
                                                        len(data[0]))
-            for i, arr in enumerate(data):
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(types[i])
-
-                if arr.data.dtype != numpy_type:
-                    raise ValueError("error, wrong type specified. Given:"
-                                     " %r Expected: %r"
-                                     "" % (arr.data.dtype, numpy_type))
-
-                data_p = arr.data.ctypes.data_as(c_void_p)
-                mask_p = arr.mask.ctypes.data_as(c_void_p)
-                cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
-                                               data_p, mask_p)
+            _load_coldata_from_arrays(coldata, data, fields, types)
 
             # Create a new column for the ids to be returned
             id_data = None
@@ -869,21 +875,7 @@ class Monary(object):
             num_rows = len(data[0]) if len(data) > 0 else 0
             coldata = cmonary.monary_alloc_column_data(len(data),
                                                        num_rows)
-            for i, arr in enumerate(data):
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(types[i])
-
-                if arr.data.dtype != numpy_type:
-                    raise ValueError(
-                        "error, wrong type specified. Given: %r Expected: %r" %
-                        (arr.data.dtype, numpy_type))
-
-                data_p = arr.data.ctypes.data_as(c_void_p)
-                mask_p = arr.mask.ctypes.data_as(c_void_p)
-                cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
-                                               data_p, mask_p)
+            _load_coldata_from_arrays(coldata, data, fields, types)
 
             collection = self._get_collection(db, coll)
             if collection is None:
@@ -901,6 +893,119 @@ class Monary(object):
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+            if collection is not None:
+                cmonary.monary_destroy_collection(collection)
+
+    def update(self, db, coll, sel_data, sel_fields, sel_types,
+               doc_data, doc_fields, doc_types=None, upsert=False,
+               multi=False):
+        """Performs a bulk update/upsert based on data from arrays.
+
+           :param db: name of database
+           :param coll: name of the collection on which to perform the remove
+           :param sel_data: list of numpy masked arrays to create the selectors
+           :param sel_fields: list of field names for the selectors
+           :param sel_types: (optional) corresponding list of field types
+           :param doc_data: list of numpy masked arrays to create the documents
+           :param doc_fields: list of field names for the documents
+           :param doc_types: (optional) corresponding list of field types
+           :param upsert: (optional) if true, upserts will be performed
+           :param multi: (optional) whether to do a multi update or not
+
+           :returns: the number of documents removed
+           :rtype: int
+        """
+        if sel_types is None:
+            sel_types = [str(arr.data.dtype) for arr in sel_data]
+        if doc_types is None:
+            doc_types = [str(arr.data.dtype) for arr in doc_data]
+
+        if len(sel_data) != len(sel_fields) or \
+           len(sel_fields) != len(sel_types):
+            raise ValueError("fields, types, and data for the selectors must "
+                             "all be the same length")
+        if len(doc_data) != len(doc_fields) or \
+           len(doc_fields) != len(doc_types):
+            raise ValueError("fields, types, and data for the documents must "
+                             "all be the same length")
+
+        if len(sel_fields) == 0 or len(doc_fields) == 0:
+            raise ValueError("cannot do an empty update")
+
+        validate_bson_fields(sel_fields, True)
+        validate_bson_fields(doc_fields, True)
+
+        sel_fields, sel_types, sel_data = \
+            sort_fields_types_data(sel_fields, sel_types, sel_data)
+        doc_fields, doc_types, doc_data = \
+            sort_fields_types_data(doc_fields, doc_types, doc_data)
+
+        for t in sel_types + doc_types:
+            if t.split(":")[0] not in _SUPPORTED_TYPES:
+                raise ValueError("cannot update with type %r" % t)
+
+        if len(set(map(len, sel_data + doc_data))) > 1:
+            raise ValueError("all data arrays must be of the same length")
+
+        collection = None
+        try:
+            num_rows = len(doc_data[0])
+
+            sel_coldata = cmonary.monary_alloc_column_data(len(sel_data),
+                                                           num_rows)
+            _load_coldata_from_arrays(sel_coldata, sel_data, sel_fields, sel_types)
+
+            doc_coldata = cmonary.monary_alloc_column_data(len(doc_data),
+                                                           num_rows)
+            _load_coldata_from_arrays(doc_coldata, doc_data, doc_fields, doc_types)
+
+            # Create a new column for the ids to be returned
+            id_data = None
+            ids = None
+            if upsert:
+                id_data = cmonary.monary_alloc_column_data(1, num_rows)
+                id_type = "id"
+                if "_id" in sel_fields:
+                    id_type = sel_types[0]
+                cmonary_type, cmonary_type_arg, numpy_type = \
+                        get_monary_numpy_type(id_type)
+
+                data = numpy.zeros(num_rows, dtype=numpy_type)
+                mask = numpy.ones(num_rows, dtype='bool')
+                cmonary.monary_set_column_item(id_data, 0,
+                                               "_id".encode("utf-8"),
+                                               cmonary_type, cmonary_type_arg,
+                                               data.ctypes.data_as(c_void_p),
+                                               mask.ctypes.data_as(c_void_p))
+                ids = numpy.ma.masked_array(data, mask)
+
+            collection = self._get_collection(db, coll)
+            if collection is None:
+                raise ValueError("unable to get the collection")
+
+            TwoInts = c_int * 2
+            num_updates_upserts = TwoInts(0, 0)
+            cmonary.monary_update(collection,
+                                  sel_coldata,
+                                  doc_coldata,
+                                  id_data,
+                                  num_updates_upserts,
+                                  self._connection,
+                                  upsert,
+                                  multi)
+            updated, upserted = num_updates_upserts
+            if updated < 0:
+                raise RuntimeError(
+                    "update failed after updating %d documents" %
+                    (abs(updated) - 1))
+            if upsert:
+                return (updated, upserted, ids)
+            return updated
+        finally:
+            if sel_coldata is not None:
+                cmonary.monary_free_column_data(sel_coldata)
+            if doc_coldata is not None:
+                cmonary.monary_free_column_data(doc_coldata)
             if collection is not None:
                 cmonary.monary_destroy_collection(collection)
 
