@@ -1288,7 +1288,7 @@ int monary_remove(mongoc_collection_t* collection,
     selectors_used = 0;
 
     max_message_size = mongoc_client_get_max_message_size(client);
-    DEBUG("Max messgae size: %d", max_message_size);
+    DEBUG("Max message size: %d", max_message_size);
     data_len = 0;
 
     DEBUG("Removing: %d selectors with %d keys.",
@@ -1296,40 +1296,43 @@ int monary_remove(mongoc_collection_t* collection,
 
     // If remove was called with empty arrays, add an empty BSON.
     if (coldata->num_rows == 0) {
+        if (coldata->num_columns != 0) {
+            DEBUG("%s", "Error: cannot have 0 rows and > 0 columns.");
+            num_removed *= -1;
+            num_removed--;
+            goto end;
+        }
+        // So the empty BSON will be inserted.
+        // Note that if the number of columns is 0, and the number of rows is
+        // not 0, then there is an exception raised in monary.py before getting
+        // here. This makes the next line safe.
+        coldata->num_rows = 1;
+    }
+
+    // Start row at -1 so the empty document will be sent if
+    // `coldata->num_rows` is 0.
+    for (row = 0; row < coldata->num_rows; row++) {
+        if (!monary_bson_from_columns(coldata->columns, row, 0,
+                                      coldata->num_columns,
+                                      &selector, 0, 0)) {
+            DEBUG("Failed to make BSON from row %d", row);
+            num_removed *= -1;
+            num_removed--;
+            goto end;
+        }
+
+        data_len += selector.len;
         if (just_one) {
             mongoc_bulk_operation_remove_one(bulk_op, &selector);
         } else {
             mongoc_bulk_operation_remove(bulk_op, &selector);
         }
-        data_len += selector.len;
-    }
-
-    // Start row at -1 so the empty document will be sent if
-    // `coldata->num_rows` is 0.
-    for (row = -1; row < (int)coldata->num_rows; row++) {
-        if (row != -1) {
-            if (!monary_bson_from_columns(coldata->columns, row, 0,
-                                          coldata->num_columns,
-                                          &selector, 0, 0)) {
-                DEBUG("Failed to make BSON from row %d", row);
-                num_removed *= -1;
-                num_removed--;
-                goto end;
-            }
-
-            data_len += selector.len;
-            if (just_one) {
-                mongoc_bulk_operation_remove_one(bulk_op, &selector);
-            } else {
-                mongoc_bulk_operation_remove(bulk_op, &selector);
-            }
-            bson_reinit(&selector);
-        }
+        bson_reinit(&selector);
 
         // The C driver sends commands in as few batches as possible. See
         // the more detailed comment in ``monary_insert``.
         if (data_len > max_message_size || row == (coldata->num_rows - 1) ||
-            coldata->num_rows == 0) {
+            coldata->num_columns == 0) {
             num_selectors = row - selectors_used;
             DEBUG("Removing with selectors %d through %d, total data: %d",
                   selectors_used + 1, row + 1, data_len);
@@ -1337,12 +1340,12 @@ int monary_remove(mongoc_collection_t* collection,
                 selectors_used += num_selectors;
                 data_len = 0;
 
-                // Load the number of documnets removed from server reply
+                // Load the number of documents removed from server reply
                 if (bson_iter_init_find(&bsonit, &reply, "nRemoved") &&
                     BSON_ITER_HOLDS_INT32(&bsonit)) {
                     num_removed += bson_iter_int32(&bsonit);
                 } else {
-                    DEBUG("Server reply did not contains %s", "nRemoved");
+                    DEBUG("%s", "Server reply did not contain 'nRemoved'");
                     num_removed *= -1;
                     num_removed--;
                     goto end;

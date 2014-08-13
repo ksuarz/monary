@@ -861,6 +861,9 @@ class Monary(object):
         if len(set(map(len, data))) > 1:
             raise ValueError("all given arrays must be of the same length")
 
+        if len(data) > 0 and len(data[0]) == 0:
+            raise ValueError("give an empty masked array of values to remove")
+
         collection = None
         try:
             num_rows = len(data[0]) if len(data) > 0 else 0
