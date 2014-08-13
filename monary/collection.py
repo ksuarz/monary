@@ -86,9 +86,9 @@ class Collection(object):
                                                     fields, types, **kwargs)
 
     def insert(self, data, fields, types=None):
-        return self.data.client.insert(self.database.name, self.name,
-                                       data, fields, types)
+        return self.database.client.insert(self.database.name, self.name,
+                                           data, fields, types)
 
     def remove(self, data, fields, types=None, just_one=False):
-        return self.data.client.remove(self.database.name, self.name,
-                                       data, fields, types, just_one)
+        return self.database.client.remove(self.database.name, self.name,
+                                           data, fields, types, just_one)
