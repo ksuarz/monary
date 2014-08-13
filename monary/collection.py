@@ -64,7 +64,7 @@ class Collection(object):
         return self.__full_name
 
     # TODO: Docstrings to come later. (Copy originals)
-    def count(self, query):
+    def count(self, query=None):
         return self.database.client.count(self.database.name, self.name, query)
 
     def find(self, query, fields, types, **kwargs):
