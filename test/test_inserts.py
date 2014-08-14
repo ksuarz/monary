@@ -179,7 +179,7 @@ def test_insert_and_retrieve_no_types():
         ids = m.insert("monary_test", "data", TYPE_INFERABLE_ARRAYS + [seq],
                        ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                         "x9", "x10", "x11", "sequence"])
-        assert len(ids) == NUM_TEST_RECORDS
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11"],
@@ -199,7 +199,7 @@ def test_insert_and_retrieve():
                        ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                         "x9", "x10", "x11", "x12", "x13", "x14", "x15",
                         "sequence"], types)
-        assert len(ids) == NUM_TEST_RECORDS
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11", "x12", "x13", "x14", "x15",
@@ -229,13 +229,12 @@ def test_oid():
         # Insert documents to generate ObjectIds.
         ids = m.insert("monary_test", "data", [bool_arr, seq],
                        ["dummy", "sequence"])
-        assert len(ids) == NUM_TEST_RECORDS
-        ids = ma.masked_array(ids, np.zeros(NUM_TEST_RECORDS))
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         # Increment the sequence so sorting still works
         seq2 = seq + NUM_TEST_RECORDS
         ids2 = m.insert("monary_test", "data", [ids, seq2],
                         ["oid", "sequence"], ["id", "int64"])
-        assert len(ids2) == NUM_TEST_RECORDS
+        assert len(ids2) == ids.count() == NUM_TEST_RECORDS
         # Get back the ids from the original insert (_id) and the ids that
         # were manually inserted (oid)
         retrieved = m.query("monary_test", "data", {},
@@ -367,13 +366,13 @@ def test_custom_id():
     with monary.Monary() as m:
         id_seq = m.insert("monary_test", "data",
                           [int16_arr, seq], ["num", "_id"])
-        assert len(id_seq) == NUM_TEST_RECORDS
+        assert len(id_seq) == id_seq.count() == NUM_TEST_RECORDS
         assert (id_seq == seq.data).all()
         id_float = m.insert("monary_test", "data",
                             [seq, date_arr, f_unmasked],
                             ["sequence", "x.date", "_id"],
                             ["int64", "date", "float64"])
-        assert len(id_float) == NUM_TEST_RECORDS
+        assert len(id_float) == id_float.count() == NUM_TEST_RECORDS
         assert (id_float == f_unmasked.data).all()
         # BSON type 18 is int64.
         data, = m.query("monary_test", "data", {"_id": {"$type": 18}},

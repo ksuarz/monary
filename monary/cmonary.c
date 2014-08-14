@@ -1131,45 +1131,89 @@ int monary_bson_from_columns(monary_column_item* columns,
 }
 
 /**
+ * Mask all indices that the server says had an error.
+ *
+ * @param errors A bson_iter containing the array of errors.
+ * @param mask A buffer representing the mask.
+ * @param offset The offset into the mask at which to start writing.
+ *
+ * @return 1 if successful, 0 otherwise
+ */
+int monary_mask_failed_writes(bson_iter_t* errors,
+                              unsigned char* mask,
+                              int offset)
+{
+    bson_iter_t array_iter;
+    bson_iter_t document_iter;
+    int index;
+
+    if (!BSON_ITER_HOLDS_ARRAY(errors)) {
+        return 0;
+    }
+    if (!bson_iter_recurse(errors, &array_iter)) {
+        return 0;
+    }
+    while (bson_iter_next(&array_iter)) {
+        if (bson_iter_recurse(&array_iter, &document_iter) &&
+            bson_iter_find(&document_iter, "index")) {
+            if (BSON_ITER_HOLDS_INT32(&document_iter)) {
+                index = bson_iter_int32(&document_iter);
+            } else {
+                return 0;
+            }
+            mask[index + offset] = 1;
+        } else{
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
  * Puts the given data into BSON and inserts into the given collection.
  *
  * @param collection The MongoDB collection to insert to.
  * @param coldata The column data storing the values to insert.
  * @param id_data The column data that will return the generated object ids,
-                  or Null if the '_id' field has been provided.
+ *                or Null if the '_id' field has been provided.
  * @param client The connection to the database.
- *
- * @return The number of documents inserted into the database.
+ * @param write_concern_w The number of nodes that each document must be
+ *                        written to before the server acknowledges the write.
  */
-int monary_insert(mongoc_collection_t* collection,
-                  monary_column_data* coldata,
-                  monary_column_data* id_data,
-                  mongoc_client_t* client)
+void monary_insert(mongoc_collection_t* collection,
+                   monary_column_data* coldata,
+                   monary_column_data* id_data,
+                   mongoc_client_t* client,
+                   int write_concern_w)
 {
     bson_error_t error;
     bson_iter_t bsonit;
-    bson_iter_t descendant;
     bson_oid_t oid;
     bson_t document;
     bson_t reply;
     monary_column_item* citem;
     mongoc_bulk_operation_t* bulk_op;
+    mongoc_write_concern_t* write_concern;
+    bool id_provided;
     int data_len;
     int i;
-    int len;
     int max_message_size;
+    int num_docs;
     int num_inserted;
     int row;
-    uint32_t num_docs;
     uint8_t* storage;
 
     // Sanity checks
-    if (!collection || !coldata) {
+    if (!collection || !coldata || !id_data) {
         DEBUG("%s", "Given a NULL param.");
-        return 0;
+        return;
     }
 
-    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+    write_concern = mongoc_write_concern_new();
+    mongoc_write_concern_set_w(write_concern, write_concern_w);
+
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false,
+                                                      write_concern);
 
     bson_init(&document);
     bson_init(&reply);
@@ -1179,10 +1223,12 @@ int monary_insert(mongoc_collection_t* collection,
     DEBUG("Max message size: %d", max_message_size);
     data_len = 0;
 
+    id_provided = (strcmp(coldata->columns->field, "_id") == 0);
+
     // Generate all ObjectId's in advance if the user has not specified "_id"
-    if (id_data) {
+    if (!id_provided) {
         storage = id_data->columns->storage;
-        for (row = 0; row < coldata->num_rows; row++) {
+        for (i = 0; i < coldata->num_rows; i++) {
             bson_oid_init(&oid, NULL);
             memcpy(storage, oid.bytes, sizeof(bson_oid_t));
             // Move the storage pointer to the next 12 bytes.
@@ -1195,7 +1241,7 @@ int monary_insert(mongoc_collection_t* collection,
     DEBUG("Inserting %d documents with %d keys.",
           coldata->num_rows, coldata->num_columns);
     for (row = 0; row < coldata->num_rows; row++) {
-        if (id_data) {
+        if (!id_provided) {
             // If _id is not provided, append the generated ObjectId.
             bson_oid_init_from_data(&oid, storage + (row * sizeof(bson_oid_t)));
             BSON_APPEND_OID(&document, "_id", &oid);
@@ -1203,7 +1249,6 @@ int monary_insert(mongoc_collection_t* collection,
         if (!monary_bson_from_columns(coldata->columns, row, 0,
                                       coldata->num_columns, &document,
                                       0, 0)) {
-            num_inserted *= -1;
             goto end;
         }
         data_len += document.len;
@@ -1216,23 +1261,34 @@ int monary_insert(mongoc_collection_t* collection,
         // insert commands.
         if (data_len > max_message_size || row == (coldata->num_rows - 1)) {
             num_docs = row + 1 - num_inserted;
+            // Unmask the values that will be inserted.
+            for (i = num_inserted; i <= row; i++) {
+                (id_data->columns->mask)[i] = 0;
+            }
             DEBUG("Inserting documents %d through %d, total data: %d",
                   num_inserted + 1, row + 1, data_len);
             if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
                 num_inserted += num_docs;
                 data_len = 0;
             } else {
-                DEBUG("Failed to insert documents %d through %d",
-                      num_inserted + 1, row + 1);
-                if (error.message) {
-                    DEBUG("Error message: %s", error.message);
+                DEBUG("Error message: %s", error.message);
+                // Mask all of the values that failed.
+                if (!(bson_iter_init_find(&bsonit, &reply, "writeErrors") &&
+                      monary_mask_failed_writes(&bsonit,
+                                                id_data->columns->mask,
+                                                num_inserted))) {
+                    // If the server didn't reply with writeErrors, or the
+                    // masking failed, mask everything that we tried to write.
+                    for (i = num_inserted; i < row - 1; i++) {
+                        (id_data->columns->mask)[i] = 1;
+                    }
                 }
-                num_inserted *= -1;
                 goto end;
             }
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
-                                                              false, NULL);
+                                                              false,
+                                                              write_concern);
             bson_reinit(&reply);
         }
     }
@@ -1241,5 +1297,5 @@ end:
     bson_destroy(&document);
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk_op);
-    return num_inserted;
+    mongoc_write_concern_destroy(write_concern);
 }

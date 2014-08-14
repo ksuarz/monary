@@ -75,7 +75,7 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPPP:I"
+    "monary_insert:PPPPI:0"
 ]
 
 MAX_COLUMNS = 1024
@@ -585,7 +585,7 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def insert(self, db, coll, data, fields, types=None):
+    def insert(self, db, coll, data, fields, types=None, write_concern=1):
         """Performs an insertion of data from arrays.
 
            :param db: name of database
@@ -593,6 +593,10 @@ class Monary(object):
            :param data: list of numpy masked arrays to be inserted
            :param fields: list of fields to name the data to be inserted
            :param types: (optional) corresponding list of field types
+           :param write_concern: (optional) the number of nodes that each
+                                 document must be written to before the server
+                                 acknowledges the write. See the MongoDB manual
+                                 entry on Write Concern.
 
            :returns: A numpy array of the inserted documents ObjectIds
            :rtype: numpy.ndarray
@@ -656,38 +660,40 @@ class Monary(object):
                                                data_p, mask_p)
 
             # Create a new column for the ids to be returned
-            id_data = None
-            ids = None
+            id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
+
             if "_id" in fields:
                 # If the user specifies "_id", it will be sorted to the front.
                 ids = numpy.copy(data[0])
+                cmonary_type, cmonary_type_arg, numpy_type = \
+                        get_monary_numpy_type(types[0])
             else:
                 # Allocate a single collumn to return the generated ObjectIds.
-                id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
                 cmonary_type, cmonary_type_arg, numpy_type = \
                         get_monary_numpy_type("id")
-
                 ids = numpy.zeros(len(data[0]), dtype=numpy_type)
-                cmonary.monary_set_column_item(id_data, 0,
-                                               "_id".encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
-                                               ids.ctypes.data_as(c_void_p),
-                                               None)
+
+            mask = numpy.ones(len(data[0]))
+            ids = numpy.ma.masked_array(ids, mask)
+            cmonary.monary_set_column_item(id_data, 0,
+                                           "_id".encode("utf-8"),
+                                           cmonary_type, cmonary_type_arg,
+                                           ids.data.ctypes.data_as(c_void_p),
+                                           ids.mask.ctypes.data_as(c_void_p))
 
             collection = self._get_collection(db, coll)
             if collection is None:
                 raise ValueError("unable to get the collection")
 
-            inserted = cmonary.monary_insert(collection, coldata, id_data,
-                                             self._connection)
+            cmonary.monary_insert(collection, coldata, id_data,
+                                  self._connection, write_concern)
 
-            if inserted < 1:
-                raise RuntimeError("insert failed after inserting %d "
-                                   "documents" % abs(inserted))
             return ids
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+            if id_data is not None:
+                cmonary.monary_free_column_data(id_data)
             if collection is not None:
                 cmonary.monary_destroy_collection(collection)
 
