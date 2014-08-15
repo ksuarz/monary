@@ -17,7 +17,7 @@ random strings. First, make a connection::
     >>> from pymongo import MongoClient
     >>> client = MongoClient()
 
-Then, we can insert random strings of your choosing::
+Then, we can insert random strings::
 
     >>> import random
     >>> import string
@@ -109,7 +109,7 @@ Each of these values is a ``numpy.string_`` instance. You can convert it to a
 regular Python string if you'd like::
 
     >>> mystr = str(data[0])  # Python 2
-    >>> mystr = data[0].decode("ascii")  # Python 3
+    >>> mystr = data[0].decode("utf-8")  # Python 3
 
 If you have non-ASCII UTF-8 characters in this data, you can create a Unicode
 (Python 2) or Str (Python 3) object by decoding the data::

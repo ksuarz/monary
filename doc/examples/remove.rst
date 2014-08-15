@@ -9,6 +9,19 @@ remove. Selectors are simply BSON documents. Depending on the value of remove's
 ``just_one`` command, a single matching document or all matching documents will
 be removed for each selector created during monary's ``remove``.
 
+A single Monary remove command runs a MongoDB remove commands for each element
+in the data arrays. For example, the monary command::
+
+    values = numpy.ma.masked_array([1, 2, 3], [False] * 3)
+    client.remove('db', 'collection', [values], ["fieldname"])
+
+\...is equivalent to these PyMongo operations::
+
+    collection = MongoClient().db.collection
+    collection.remove({'fieldname': 1})
+    collection.remove({'fieldname': 2})
+    collection.remove({'fieldname': 3})
+
 .. seealso::
 
     :doc:`Monary's Insert Example </examples/insert>` and
@@ -17,16 +30,15 @@ be removed for each selector created during monary's ``remove``.
 
 Purpose of Remove
 -----------------
-Monary allows bulk finds and bulk inserts, so it makes sense to extend support
-to bulk removes. Monary's "bulk" removes are different than regular removes in
-that they perform many regular removes at once. This provides the user a fast
-way to remove large amounts of data with one command, while still having a very
-fine grained control over what is removed.
+Monary's "bulk" removes are different than regular MongoDB removes in that they
+perform many MongoDB removes at once. This gives you a fast way to remove large
+amounts of data with one command, while still having fine grained control over
+what is removed.
 
 Setup
 -----
 For this example, we will use Monary's insert to put ten thousand random values
-representing scores out of 100 into our data base. First, we set up a Monary
+representing scores out of 100 into our database. First, we set up a Monary
 connection to the local MongoDB database::
 
     >>> from monary import Monary

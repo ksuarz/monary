@@ -1,7 +1,7 @@
 Query Example
 =============
 
-This quick example shows you how to use Monary's ``query`` command.
+This example shows you how to use Monary's ``query`` command.
 
 Setup
 -----
@@ -34,8 +34,8 @@ To perform a query, first create a Monary connection::
     >>> from monary import Monary
     >>> m = Monary()
 
-Now we query the database, specifying the keys we want from the mongo documents
-and what type we want the returned data to be::
+Now we query the database, specifying the keys we want from the MongoDB
+documents and what type we want the returned data to be::
 
     >>> buy_price, sell_price = m.query("finance", "assets", {"sold": True},
     ...                                 ["buy_price", "sell_price"],

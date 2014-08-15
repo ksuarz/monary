@@ -1,7 +1,7 @@
 Examples
 ========
 
-This sections gives examples of accomplishing specific tasks with Monary.
+This section gives examples of accomplishing specific tasks with Monary.
 
 Unless otherwise noted, all examples assume that **mongod** is running on the
 default host and port. If MongoDB is already `downloaded and installed

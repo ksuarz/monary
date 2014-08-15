@@ -1,6 +1,7 @@
 Type Reference
 ==============
-The following data types are supported:
+Monary converts values between BSON and NumPy. The following data types can be
+stored in NumPy arrays:
 
  * ``id``: `ObjectID <http://dochub.mongodb.org/core/objectids>`_
  * ``bool``: boolean
@@ -23,8 +24,15 @@ The following data types are supported:
  * ``size``: <see below>
  * ``length``: <see below>
 
-All types are implemented in C, thus type conversions follows the rules of the
-C standard.
+When values are retrieved from MongoDB they are converted from BSON types to the
+NumPy types you specify. See query, block_query, and aggregate. All types are
+implemented in C, thus type conversions follow the rules of the C standard.
+
+When values are inserted into MongoDB they are converted from NumPy types to
+BSON types. In most cases the BSON type can be inferred from the input NumPy
+type, except for types ``id``, ``timestamp``, ``string``, ``binary``, ``bson``.
+
+
 
 .. seealso::
 
@@ -35,11 +43,11 @@ BSON Types
 ----------
 Integers
 ........
-The `BSON specification`_ only stores signed 32- and 64-bit integers.
-Specifying an unsigned integer or an integer size of 8- or 16-bits causes a
-cast. Casting a negative number to an unsigned integer or casting to a smaller
-integer size with overflow is implementation-defined, depending on the C
-compiler for your platform.
+`BSON`_ only stores signed 32- and 64-bit integers. Specifying an unsigned
+integer or an integer size of 8- or 16-bits causes a cast. Casting a negative
+number to an unsigned integer or casting to a smaller integer size with
+overflow is implementation-defined, depending on the C compiler for your
+platform.
 
 Floating-point numbers can be cast to integers. In the case of overflow, the
 result is undefined.
@@ -75,6 +83,10 @@ Binary
 ......
 Binary data retrieved from MongoDB is accessed via 
 
+.. seealso::
+
+    :doc:`examples/binary` for an example of using binary data.
+
 Strings
 .......
 All strings in MongoDB are encoded in UTF-8. When performing a find query on
@@ -84,6 +96,10 @@ higher-order UTF-8 encodings may occupy more space. You can use Monary to query
 for the strings' actual size in bytes to determine what size to use.
 
 Find queries return lists of ``numpy.string_`` objects.
+
+.. seealso::
+
+    :doc:`examples/string` for an example of using strings.
 
 Subdocuments
 ............

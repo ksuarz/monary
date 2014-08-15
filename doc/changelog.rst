@@ -14,12 +14,11 @@ Version 0.3.0 is a major overhaul of the backend code.
 - Debug messages are suppressed by default.
 - ``datehelper`` now allows negative timedeltas and time values to represent
   dates before the epoch.
-- Monary objects no longer supports the ``authenticate()`` method, which is a
+- Monary objects no longer support the ``authenticate()`` method, which is a
   breaking change. If your code relied on ``authenticate()``, you must now
   include the username and password in the MongoDB URI passed into the Monary
   constructor.
-  Authentication now occurs when a connection is made (in ``__init__()`` and
-  ``connect()``).
+  Authentication now occurs when a connection is made.
 
 
 Issues Resolved

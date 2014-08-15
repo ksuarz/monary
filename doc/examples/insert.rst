@@ -5,15 +5,13 @@ This example shows you how to use Monary's ``insert`` command to send documents
 to MongoDB.
 
 Any value that can be queried can also be inserted except for ``type``,
-``length``, and ``size``. Values returned from any of those queries, however,
-can themselves be inserted. Both nested field insertion (via fields containing
+``length``, and ``size``. Both nested field insertion (via fields containing
 ".") and BSON value insertion are supported as well.
 
 Purpose of Insert
 -----------------
-Though MongoDB has aggregation functionality, Numpy can perform more operations
-than aggregation supports. Because of this, it can be useful to insert data
-into MongoDB with Monary after processing it with Numpy.
+Inserts allow you to use Monary to convert data from NumPy Masked arrays into
+documents stored in MongoDB.
 
 Monary inserts can also be used to store intermediate data in the middle of
 intense computations. This can be useful when doing operations on blocks of
@@ -46,7 +44,7 @@ Next, we generate the documents::
 
 Using Monary Insert
 -------------------
-Let's first get all the raw test data into Numpy arrays with Monary::
+Let's first get all the raw test data into NumPy arrays with Monary::
 
     >>> import numpy as np
     >>> from monary import Monary

@@ -1,7 +1,7 @@
 Timestamp Example
 =================
 
-This quick example demonstrates how to extract timestamps with Monary.
+This example demonstrates how to extract timestamps with Monary.
 
 Setup
 -----

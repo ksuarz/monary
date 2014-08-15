@@ -32,7 +32,13 @@ explicitly::
 
 Monary can also accept MongoDB URI strings::
 
-    >>> client = Monary("mongodb://localhost:27017/")
+    >>> client = Monary("mongodb://me@password:test.example.net:2500/database?replicaSet=test&connectTimeoutMS=300000")
+
+.. seealso::
+
+    The `MongoDB connection string format
+    <http://docs.mongodb.org/manual/reference/connection-string/>`_ for more
+    information about how these URI's are formatted.
 
 Performing Finds
 ----------------

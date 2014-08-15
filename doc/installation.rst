@@ -65,30 +65,7 @@ Installing on Other Unix Distributions
 --------------------------------------
 Monary uses the `MongoDB C driver <https://github.com/mongodb/mongo-c-driver>`_.
 If you install Monary on Linux, BSD and Solaris, you'll need to be able to
-compile the C driver with the GNU C compiler. Depending on your system, you may
-also need a Python development package that provides the necessary header files
-for building C extensions for Python. If you don't have the appropriate
-packages, you can install them from a repository with your system package
-manager.
-
-On Debian and Ubuntu:
-
-.. code-block:: bash
-
-    $ sudo apt-get install build-essential python-dev
-
-On Red Hat-based distributions (RHEL, CentOS, Fedora, etc.):
-
-.. code-block:: bash
-
-    $ sudo yum install gcc python-devel
-
-On Arch Linux-based distributions, development headers should already be
-included in the regular Python distribution:
-
-.. code-block:: bash
-
-    $ sudo pacman -S base-devel gcc python2
+compile the C driver with the GNU C compiler.
 
 Installing from Source
 ----------------------

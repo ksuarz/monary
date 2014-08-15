@@ -29,7 +29,7 @@ Finally, we use PyMongo's ``Binary`` class and insert the data into MongoDB::
     ...     doc = {"bindata" : data}
     ...     client.test.data.insert(doc)
 
-If you don't happen to have random files laying around, you can issue this
+If you don't happen to have random files lying around, you can issue this
 command at a Unix shell:
 
 .. code-block:: bash

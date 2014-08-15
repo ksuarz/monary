@@ -17,7 +17,8 @@ perform any updates or removals. In the meantime, you can use
 Why does my array contain masked values?
 ----------------------------------------
 Typically, a value is masked if the data type you specify for a field is
-incompatible with the actual type retrieved from the document in MongoDB.
+incompatible with the actual type retrieved from the document in MongoDB, or
+if the specified field is absent in some of your documents.
 
 If the entire array is masked, there are no documents in the collection that
 contain that field, or all of the matching fields in the database have an
@@ -58,10 +59,25 @@ depending on what type the query asks for::
 How does monary deal with ObjectIds?
 ------------------------------------
 When querying for ``_id``'s or when inserting documents, you might end up with
-ObejectIds stored in a numpy array. This may look like a nested array, but the
-data type of the array is ``"<V12"``, and each individual element is of type
-``numpy.ma.core.mvoid``. If you would like this as a
-``bson.objectid.ObjectId``, it can be done like this::
+ObejectIds stored in a NumPy array. The data type of the array is ``"<V12"``,
+and each individual element is of type ``numpy.ma.core.mvoid``. However it may
+end up looking like this::
+
+    masked_array(data = [ array([ 83, -18,  62, -28,  97,  21,  83, -51, -21, 106, -54,  11], dtype=int8)
+     array([ 83, -18,  62, -28,  97,  21,  83, -51, -21, 106, -54,  12], dtype=int8)
+     array([ 83, -18,  62, -28,  97,  21,  83, -51, -21, 106, -54,  13], dtype=int8)
+     ...,
+     array([  83,  -18,   63,  -63,   97,   21,   83,  -51,  -21, -104, -112,
+            -56], dtype=int8)
+     array([  83,  -18,   63,  -63,   97,   21,   83,  -51,  -21, -104, -112,
+            -55], dtype=int8)
+     array([  83,  -18,   63,  -63,   97,   21,   83,  -51,  -21, -104, -112,
+            -54], dtype=int8)],
+                 mask = [False False False ..., False False False],
+           fill_value = ???)
+
+If you would like this as a ``bson.objectid.ObjectId``, it can be done like
+this::
 
     >>> from monary import Monary
     >>> with Monary() as m:
@@ -77,8 +93,8 @@ data type of the array is ``"<V12"``, and each individual element is of type
 What if I don't know what type of data I want from MongoDB?
 -----------------------------------------------------------
 MongoDB has very flexible schemas; a consequence of this is that documents in
-the same collection can have fields of different types. To infer the type of
-data for a certain field name, specify the type of "type"::
+the same collection can have fields of different types. To determine the type
+of data for a certain field name, specify the type "type"::
 
     >>> from monary import Monary
     >>> m = Monary()
@@ -97,8 +113,8 @@ This returns an 8-bit integer containing the BSON type code for the object.
 
 .. _using-strings:
 
-How do I retrieve strings data using Monary?
---------------------------------------------
+How do I retrieve string data using Monary?
+-------------------------------------------
 Internally, all strings are `C strings
 <http://en.wikipedia.org/wiki/C_string#Definitions>`_.  To specify a string
 type, you must also indicate the size of the string (not including the
@@ -141,10 +157,10 @@ doubles. This most commonly happens at the mongo shell:
 .. code-block:: javascript
 
     > use test
-    > db.foo.insert({ a : 1 })
+    > db.foo.insert({ a : 22 })
     WriteResult({ "nInserted" : 1 })
 
-This results in::
+The BSON type code for double is 1, so this results in::
 
     >>> m.query("test", "foo", {}, ["a"], ["type"])
     [masked_array(data = [1],
