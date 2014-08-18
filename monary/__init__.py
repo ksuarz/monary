@@ -1,7 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
-from .monary import Monary
+from .monary import Monary, mvoid_to_bson_id
 from .datehelper import *
 
 version = "0.3.0"
