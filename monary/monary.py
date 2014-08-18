@@ -585,21 +585,25 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def insert(self, db, coll, data, fields, types=None, write_concern=1):
+    def insert(self, db, coll, data, fields, types=None, w=1):
         """Performs an insertion of data from arrays.
+
+           The ``write`` concern is number of nodes that each document must be
+           written to before the server acknowledges the write. See the MongoDB
+           manual entry on Write Concern
+           (http://docs.mongodb.org/manual/reference/write-concern/) for more
+           details.
 
            :param db: name of database
            :param coll: name of the collection to insert into
            :param data: list of numpy masked arrays to be inserted
            :param fields: list of fields to name the data to be inserted
            :param types: (optional) corresponding list of field types
-           :param write_concern: (optional) the number of nodes that each
-                                 document must be written to before the server
-                                 acknowledges the write. See the MongoDB manual
-                                 entry on Write Concern.
+           :param w: (optional) the write concern
 
-           :returns: A numpy array of the inserted documents ObjectIds
-           :rtype: numpy.ndarray
+           :returns: A numpy array of the inserted documents ObjectIds. Masked
+                     values indicate documents that failed to be inserted.
+           :rtype: numpy.ma.core.MaskedArray
 
            .. note:: Fields will be sorted before insertion. To ensure that _id
                      is the first filled in all generated documents and that
@@ -668,7 +672,7 @@ class Monary(object):
                 cmonary_type, cmonary_type_arg, numpy_type = \
                         get_monary_numpy_type(types[0])
             else:
-                # Allocate a single collumn to return the generated ObjectIds.
+                # Allocate a single column to return the generated ObjectIds.
                 cmonary_type, cmonary_type_arg, numpy_type = \
                         get_monary_numpy_type("id")
                 ids = numpy.zeros(len(data[0]), dtype=numpy_type)
@@ -686,7 +690,7 @@ class Monary(object):
                 raise ValueError("unable to get the collection")
 
             cmonary.monary_insert(collection, coldata, id_data,
-                                  self._connection, write_concern)
+                                  self._connection, w)
 
             return ids
         finally:

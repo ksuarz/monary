@@ -11,7 +11,7 @@ import time
 
 import bson
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 import pymongo
 
 import monary
@@ -385,6 +385,39 @@ def test_custom_id():
         assert len(data) == data.count() == NUM_TEST_RECORDS
         assert (data == f_unmasked).all()
     teardown()
+
+
+def test_insert_errors():
+    with monary.Monary() as m:
+        a = ma.masked_array([1, 3], [False] * 2, dtype="int8")
+        b = ma.masked_array([1, 2, 3, 4], [False] * 4, dtype="int8")
+        a_id = m.insert("monary_test", "data", [a], ["_id"])
+        assert len(a_id) == a_id.count() == len(a)
+        b_id = m.insert("monary_test", "data", [b], ["_id"])
+        assert len(b_id) == len(b)
+        assert b_id.count() == len(b) - len(a)
+        teardown()
+
+        # ``threes`` is a list of numbers counting up by 3, i.e. 0 3 6 9 ...
+        threes = np.arange(int(NUM_TEST_RECORDS / 3), dtype="int64")
+        threes *= 3
+        threes = ma.masked_array(threes, np.zeros(int(NUM_TEST_RECORDS / 3)))
+        m.insert("monary_test", "data", [threes], ["_id"])
+
+        nums = ma.masked_array(
+            np.arange(NUM_TEST_RECORDS, dtype="int64"),
+            np.zeros(NUM_TEST_RECORDS))
+        ids = m.insert("monary_test", "data", [nums], ["_id"])
+
+        assert len(ids) == len(nums)
+        assert ids.count() == len(nums) - len(threes)
+        # Everything that's a 'three' should be masked.
+        assert ids.mask[::3].all()
+        # Nothing that's not a 'three' should be masked.
+        assert not ids.mask[1::3].any()
+        assert not ids.mask[2::3].any()
+    teardown()
+
 
 
 def teardown():

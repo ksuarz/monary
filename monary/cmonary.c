@@ -1137,7 +1137,7 @@ int monary_bson_from_columns(monary_column_item* columns,
  * @param mask A buffer representing the mask.
  * @param offset The offset into the mask at which to start writing.
  *
- * @return 1 if successful, 0 otherwise
+ * @return number masked if successful, -1 otherwise
  */
 int monary_mask_failed_writes(bson_iter_t* errors,
                               unsigned char* mask,
@@ -1146,12 +1146,13 @@ int monary_mask_failed_writes(bson_iter_t* errors,
     bson_iter_t array_iter;
     bson_iter_t document_iter;
     int index;
+    int num_masked = 0;
 
     if (!BSON_ITER_HOLDS_ARRAY(errors)) {
-        return 0;
+        return -1;
     }
     if (!bson_iter_recurse(errors, &array_iter)) {
-        return 0;
+        return -1;
     }
     while (bson_iter_next(&array_iter)) {
         if (bson_iter_recurse(&array_iter, &document_iter) &&
@@ -1159,14 +1160,15 @@ int monary_mask_failed_writes(bson_iter_t* errors,
             if (BSON_ITER_HOLDS_INT32(&document_iter)) {
                 index = bson_iter_int32(&document_iter);
             } else {
-                return 0;
+                return -1;
             }
             mask[index + offset] = 1;
+            num_masked++;
         } else{
-            return 0;
+            return -1;
         }
     }
-    return 1;
+    return num_masked;
 }
 
 /**
@@ -1195,11 +1197,13 @@ void monary_insert(mongoc_collection_t* collection,
     mongoc_bulk_operation_t* bulk_op;
     mongoc_write_concern_t* write_concern;
     bool id_provided;
+    char* str;
     int data_len;
     int i;
     int max_message_size;
     int num_docs;
     int num_inserted;
+    int num_processed;
     int row;
     uint8_t* storage;
 
@@ -1218,6 +1222,7 @@ void monary_insert(mongoc_collection_t* collection,
     bson_init(&document);
     bson_init(&reply);
     num_inserted = 0;
+    num_processed = 0;
 
     max_message_size = mongoc_client_get_max_message_size(client);
     DEBUG("Max message size: %d", max_message_size);
@@ -1260,31 +1265,47 @@ void monary_insert(mongoc_collection_t* collection,
         // max_message_size, roughly 1 batch for OP_INSERT, roughly 3 for
         // insert commands.
         if (data_len > max_message_size || row == (coldata->num_rows - 1)) {
-            num_docs = row + 1 - num_inserted;
+            num_docs = row + 1 - num_processed;
             // Unmask the values that will be inserted.
-            for (i = num_inserted; i <= row; i++) {
+            for (i = num_processed; i <= row; i++) {
                 (id_data->columns->mask)[i] = 0;
             }
             DEBUG("Inserting documents %d through %d, total data: %d",
-                  num_inserted + 1, row + 1, data_len);
+                  num_processed + 1, row + 1, data_len);
             if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
                 num_inserted += num_docs;
                 data_len = 0;
             } else {
                 DEBUG("Error message: %s", error.message);
+#ifndef NDEBUG
+                str = bson_as_json(&reply, NULL);
+                DEBUG("Server reply: %s", str);
+                bson_free(str);
+#endif
                 // Mask all of the values that failed.
-                if (!(bson_iter_init_find(&bsonit, &reply, "writeErrors") &&
-                      monary_mask_failed_writes(&bsonit,
-                                                id_data->columns->mask,
-                                                num_inserted))) {
-                    // If the server didn't reply with writeErrors, or the
-                    // masking failed, mask everything that we tried to write.
-                    for (i = num_inserted; i < row - 1; i++) {
+                if (bson_iter_init_find(&bsonit, &reply, "writeErrors")) {
+                    i = monary_mask_failed_writes(&bsonit,
+                                                  id_data->columns->mask,
+                                                  num_processed);
+                    if (i != -1) {
+                        num_inserted += num_docs - i;
+                    } else {
+                        // If the document masking failed (from a bad server
+                        // reply) then mask everything that we tried to write.
+                        for (i = num_processed; i <= row; i++) {
+                            (id_data->columns->mask)[i] = 1;
+                        }
+                    }
+                } else {
+                    DEBUG("%s", "Server reply did not contain writeErrors");
+                    for (i = num_processed; i <= row; i++) {
                         (id_data->columns->mask)[i] = 1;
                     }
+                    // If the server didn't reply with writeErrors, exit.
+                    goto end;
                 }
-                goto end;
             }
+            num_processed += num_docs;
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
                                                               false,
@@ -1293,7 +1314,7 @@ void monary_insert(mongoc_collection_t* collection,
         }
     }
 end:
-    DEBUG("Inserted %d of %d documents", num_inserted, coldata->num_rows);
+    DEBUG("Inserted %d of %d documents", num_inserted, num_processed);
     bson_destroy(&document);
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk_op);
