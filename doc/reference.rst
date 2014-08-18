@@ -36,18 +36,18 @@ type, except for types ``id``, ``timestamp``, ``string``, ``binary``, ``bson``.
 
 .. seealso::
 
-    The official `BSON Specification <http://bsonspec.org>`_ for more
+    The official `BSON Specification <http://bsonspec.org/spec.html>`_ for more
     information about how BSON is stored in binary format.
 
 BSON Types
 ----------
 Integers
 ........
-`BSON`_ only stores signed 32- and 64-bit integers. Specifying an unsigned
-integer or an integer size of 8- or 16-bits causes a cast. Casting a negative
-number to an unsigned integer or casting to a smaller integer size with
-overflow is implementation-defined, depending on the C compiler for your
-platform.
+`BSON <http://bsonspec.org/>`_ only stores signed 32- and 64-bit integers.
+Specifying an unsigned integer or an integer size of 8- or 16-bits causes a
+cast. Casting a negative number to an unsigned integer or casting to a smaller
+integer size with overflow is implementation-defined, depending on the C
+compiler for your platform.
 
 Floating-point numbers can be cast to integers. In the case of overflow, the
 result is undefined.
