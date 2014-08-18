@@ -5,41 +5,48 @@ This example shows you how to use Monary's ``query`` command.
 
 Setup
 -----
-For this example, let's use PyMongo to insert documents with numerical data
+For this example, let's use Monary to insert documents with numerical data
 into MongoDB. First, we can set up a connection to the local MongoDB database::
 
-    >>> from pymongo import MongoClient
-    >>> client = MongoClient()
+    >>> from monary import Monary
+    >>> client = Monary()
 
-Next, we generate some documents. In this example, these documents will
-represent financial assets::
+Next, we generate some documents. These documents will represent financial
+assets::
 
-    >>> import random
-    >>> documents = []
-    >>> for i in range(5000):
-    ...     doc = {"sold": True}
-    ...     doc["buy_price"] = random.uniform(50, 300)
-    ...     doc["sell_price"] = doc["buy_price"] + random.uniform(-10, 30)
-    ...     documents.append(doc)
+    >>> import numpy as np
+    >>> from numpy import ma
+    >>> records = 10000
+    >>> unmasked = np.zeros(records, dtype="bool")
 
-Finally, we use PyMongo to insert the data into MongoDB::
+    >>> # All of our assets have been sold.
+    >>> sold = ma.masked_array(np.ones(records, dtype="bool"), unmasked)
 
-    >>> client.finance.assets.insert(documents)
+    >>> # The price at which the assets were purchased.
+    >>> buy_price = ma.masked_array(np.random.uniform(50, 300, records),
+    ...                             np.copy(unmasked))
+
+    >>> delta = np.random.uniform(-10, 30, records)
+    >>> # The price at which the assets were sold.
+    >>> sell_price = ma.masked_array(buy_price.data + delta, np.copy(unmasked))
+
+Finally, we use Monary to insert the data into MongoDB::
+
+    >>> client.insert("finance", "assets",
+    ...               [sold, buy_price, sell_price],
+    ...               ["sold", "price.bought", "price.sold"],
+    ...               ["bool", "float64", "float64"])
 
 
 Using Query
 -----------
-To perform a query, first create a Monary connection::
-
-    >>> from monary import Monary
-    >>> m = Monary()
-
 Now we query the database, specifying the keys we want from the MongoDB
 documents and what type we want the returned data to be::
 
-    >>> buy_price, sell_price = m.query("finance", "assets", {"sold": True},
-    ...                                 ["buy_price", "sell_price"],
-    ...                                 ["float64", "float64"])
+    >>> buy_price, sell_price = client.query(
+    ...     "finance", "assets", {"sold": True},
+    ...     ["price.bought", "price.sold"],
+    ...     ["float64", "float64"])
     >>> assets_count = sell_price.count()
     >>> gain = sell_price - buy_price   # vector subtraction
     >>> cumulative_gain = gain.sum()
@@ -47,6 +54,6 @@ documents and what type we want the returned data to be::
 Finally, we can review our financial data::
 
     >>> cumulative_gain
-    49272.963745278699
+    100254.10514435501
     >>> assets_count
-    5000
+    10000

@@ -14,23 +14,28 @@ Setup
 We can use PyMongo to populate a collection with some test data containing
 random strings. First, make a connection::
 
-    >>> from pymongo import MongoClient
-    >>> client = MongoClient()
+    >>> from monary import Monary
+    >>> client = Monary()
 
-Then, we can insert random strings::
+Then, we can create a NumPy masked array of random strings::
 
     >>> import random
     >>> import string
-    >>> lowercase = string.lowercase  # Python 2
-    >>> lowercase = string.ascii_lowercase  # Python 3
+    >>> from numpy import ma
+    >>> import numpy as np
+    >>> lowercase = string.ascii_lowercase
     >>> def rand_str(length):
     ...     return "".join(random.choice(lowercase)
     ...                    for c in range(0, length))
     ...
-    >>> for i in range(0, 100):
-    ...     s = rand_str(random.choice(range(1, 10)))
-    ...     doc = {"stringdata" : s}
-    ...     client.test.data.insert(doc)
+    >>> strs = ma.masked_array(np.zeros(1000, dtype="S10"),
+    ...                        np.zeros(1000, dtype="bool"))
+    >>> for i in range(0, 1000):
+    ...     strs[i] = rand_str(random.choice(range(1, 10))).encode("utf-8")
+
+Finally we can use Monary to insert these strings::
+
+    >>> client.insert("test", "data", [strs], ["stringdata"], ["string:10"])
 
 MongoDB encodes strings in UTF-8, so you can use non-ASCII characters. Here is
 a sample script that inserts non-ASCII strings:
@@ -39,12 +44,18 @@ a sample script that inserts non-ASCII strings:
 
     # -*- coding: utf-8 -*-
     # the above comment is needed for Python 2 files with non-ASCII characters
-    from pymongo import MongoClient
+    from monary import Monary
+    import numpy as np
+    from numpy import ma
 
-    client = MongoClient()
-    client.test.utf8.insert({"stringdata" : "liberté"})
-    client.test.utf8.insert({"stringdata" : "自由"})
-    client.test.utf8.insert({"stringdata" : "ελευθερία"})
+    client = Monary()
+    strs = ["liberté", "自由", "ελευθερία"]
+    strs = list(map(lambda x: x.encode("utf-8"), strs))
+    max_len = max(map(len, strs))
+    str_array = ma.masked_array(strs, [False] * 3, dtype=("S%d" % max_len))
+    client.insert("test", "utf8", [str_array],
+                  ["stringdata"], ["string:%d" % max_len])
+
 
 Finding String Data
 -------------------
@@ -84,8 +95,8 @@ If we don't know the maximum size of the strings in advance, we can
 strings in bytes::
 
     >>> from monary import Monary
-    >>> m = Monary()
-    >>> sizes, = m.query("test", "data", {}, ["stringdata"], ["size"])
+    >>> client = Monary()
+    >>> sizes, = client.query("test", "data", {}, ["stringdata"], ["size"])
     >>> sizes
     masked_array(data = [9L 7L 3L ...,, 6L 5L 9L],
                  mask = [False False False ... False False False],
@@ -98,8 +109,8 @@ size::
 
 Finally, we can use this size to obtain the actual strings from MongoDB::
 
-    >>> data, = m.query("test", "data", {}, ["stringdata"],
-    ...                 ["string:%d" % max_size])
+    >>> data, = client.query("test", "data", {}, ["stringdata"],
+    ...                      ["string:%d" % max_size])
     >>> data
     masked_array(data = ['nbuvggamk' 'bkhwkwl' 'tvb' ..., 'rsdefd' 'lpasx' 'wpdlxierd'],
                  mask = [False False False ..., False False False],
@@ -114,9 +125,9 @@ regular Python string if you'd like::
 If you have non-ASCII UTF-8 characters in this data, you can create a Unicode
 (Python 2) or Str (Python 3) object by decoding the data::
 
-    >>> sizes, = m.query("test", "utf8", {}, ["stringdata"], ["size"])
-    >>> data, = m.query("test", "utf8", {}, ["stringdata"],
-    ...                 ["string:%d" % sizes.max())])
+    >>> sizes, = client.query("test", "utf8", {}, ["stringdata"], ["size"])
+    >>> data, = client.query("test", "utf8", {}, ["stringdata"],
+    ...                      ["string:%d" % sizes.max()])
 
     >>> # Python 2:
     >>> mystr = unicode(data[0], "utf-8")

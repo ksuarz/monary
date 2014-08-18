@@ -11,44 +11,49 @@ of data with a fixed amount of memory.
 
 Setup
 -----
-For this example, let's use PyMongo to insert documents with numerical data
+For this example, let's use Monary to insert documents with numerical data
 into MongoDB. First, we can set up a connection to the local MongoDB database::
 
-    >>> from pymongo import MongoClient
-    >>> client = MongoClient()
+    >>> from monary import Monary
+    >>> client = Monary()
 
 Next, we generate some documents. These documents will represent financial
 assets::
 
-    >>> import random
-    >>> documents = []
-    >>> for i in range(5000):
-    ...     doc = {"sold": True}
-    ...     doc["buy_price"] = random.uniform(50, 300)
-    ...     doc["sell_price"] = doc["buy_price"] + random.uniform(-10, 30)
-    ...     documents.append(doc)
+    >>> import numpy as np
+    >>> from numpy import ma
+    >>> records = 10000
+    >>> unmasked = np.zeros(records, dtype="bool")
 
-Finally, we use PyMongo to insert the data into MongoDB::
+    >>> # All of our assets have been sold.
+    >>> sold = ma.masked_array(np.ones(records, dtype="bool"), unmasked)
 
-    >>> client.finance.assets.insert(documents)
+    >>> # The price at which the assets were purchased.
+    >>> buy_price = ma.masked_array(np.random.uniform(50, 300, records),
+    ...                             np.copy(unmasked))
 
+    >>> delta = np.random.uniform(-10, 30, records)
+    >>> # The price at which the assets were sold.
+    >>> sell_price = ma.masked_array(buy_price.data + delta, np.copy(unmasked))
+
+Finally, we use Monary to insert the data into MongoDB::
+
+    >>> client.insert("finance", "assets",
+    ...               [sold, buy_price, sell_price],
+    ...               ["sold", "price.bought", "price.sold"],
+    ...               ["bool", "float64", "float64"])
 
 Using Block Query
 -----------------
-To perform a block query, first create a Monary connection::
-
-    >>> from monary import Monary
-    >>> m = Monary()
-
 Now we query the database, specifying also how many results we want per block::
 
     >>> cumulative_gain = 0.0
     >>> assets_count = 0
     >>> for buy_price_block, sell_price_block in (
-    ...     m.block_query("finance", "assets", {"sold": True},
-    ...                   ["buy_price", "sell_price"],
-    ...                   ["float64", "float64"],
-    ...                   block_size=1024)):
+    ...     client.block_query("finance", "assets", {"sold": True},
+    ...                        ["price.bought", "price.sold"],
+    ...                        ["float64", "float64"],
+    ...                        block_size=1024)):
     ...     assets_count += sell_price_block.count()
     ...     gain = sell_price_block - buy_price_block   # vector subtraction
     ...     cumulative_gain += gain.sum()
@@ -56,6 +61,6 @@ Now we query the database, specifying also how many results we want per block::
 Finally, we can review our financial data::
 
     >>> cumulative_gain
-    49272.963745278699
+    100254.10514435501
     >>> assets_count
-    5000
+    10000

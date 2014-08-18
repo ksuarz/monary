@@ -5,38 +5,49 @@ This example demonstrates how to extract timestamps with Monary.
 
 Setup
 -----
-We can use PyMongo to populate a collection with some test data containing
+We can use Monary to populate a collection with some test data containing
 random timestamps. First, make a connection::
 
-    >>> from pymongo import MongoClient
-    >>> client = MongoClient()
+    >>> from monary import Monary
+    >>> client = Monary()
 
-Then, we can insert random timestamps::
+Then we can generate random timestamps::
 
     >>> import random
     >>> import bson
-    >>> for _ in range(100):
+    >>> timestamps = []
+    >>> for _ in range(10000):
     ...     time = random.randint(0, 1000000)
     ...     inc = random.randint(0, 1000000)
     ...     ts = bson.timestamp.Timestamp(time=time, inc=inc)
-    ...     client.test.data.insert({"ts": ts})
+    ...     timestamps.append(ts)
+
+Next we put these values into a numpy masked array::
+
+    >>> import numpy as np
+    >>> from numpy import ma
+    >>> timestamps = [(ts.time << 32) + ts.inc for ts in timestamps]
+    >>> ts_array = ma.masked_array(np.array(timestamps, dtype="uint64"),
+    ...                            np.zeros(len(timestamps), dtype="bool"))
+
+Finally we use monary to insert this data into MongoDB::
+
+    >>> client.insert("test", "data", [ts_array], ["ts"], ["timestamp"])
 
 Finding Timestamp Data
 ----------------------
 
 Next we use :doc:`query </examples/query>` to get back our data::
 
-    >>> from monary import Monary
-    >>> m = Monary()
-    >>> time_stamps, = m.query("test", "data", {},
-    ...                        ["ts"], ["timestamp"])
+    >>> timestamps, = client.query("test", "data", {},
+    ...                            ["ts"], ["timestamp"])
 
 Finally, we use `struct <https://docs.python.org/2/library/struct.html>`_ to
 unpack the resulting data::
 
     >>> import struct
-    >>> data = [struct.unpack("<ii", ts) for ts in time_stamps]
-    >>> time_stamps = [bson.timestamp.Timestamp(time=time, inc=inc)
+    >>> data = [struct.unpack("<ii", ts) for ts in timestamps]
+    >>> timestamps = [bson.timestamp.Timestamp(time=time, inc=inc)
     ...                for time, inc in data]
-    >>> time_stamps[0]
-    Timestamp(237645, 622130)
+    >>> timestamps[0]
+    Timestamp(870767, 595669)
