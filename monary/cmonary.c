@@ -948,7 +948,6 @@ void monary_close_query(monary_cursor* cursor)
 case TYPENAME:                                                                   \
 val->value_type = BTYPENAME;                                                     \
 val->value.VKEY = (CAST_TYPE) *(((STORED_TYPE *) citem->storage) + idx);         \
-success = 1;                                                                     \
 break;
 
 /**
@@ -957,17 +956,14 @@ break;
  * @param val A pointer to the bson_value_t to populate.
  * @param citem The monary column that contains the value to use
  * @param idx The index of the storage to use.
- *
- * @return 1 if successful, 0 otherwise
  */
-int monary_make_bson_value_t(bson_value_t* val,
-                             monary_column_item* citem,
-                             int idx)
+void monary_make_bson_value_t(bson_value_t* val,
+                              monary_column_item* citem,
+                              int idx)
 {
     uint32_t len;
     uint8_t* storage = ((uint8_t*) citem->storage);
     uint8_t* current_val = storage + (idx * citem->type_arg);
-    int success = 0;
     val->padding = 0;
     switch (citem->type) {
         MONARY_SET_BSON_VALUE(TYPE_BOOL, BSON_TYPE_BOOL, v_bool, bool, bool)
@@ -997,7 +993,6 @@ int monary_make_bson_value_t(bson_value_t* val,
             val->value_type = BSON_TYPE_OID;
             bson_oid_init_from_data(&(val->value.v_oid),
                                     storage + (idx * sizeof(bson_oid_t)));
-            success = 1;
             break;
         case TYPE_TIMESTAMP:
             val->value_type = BSON_TYPE_TIMESTAMP;
@@ -1007,20 +1002,17 @@ int monary_make_bson_value_t(bson_value_t* val,
             memcpy(&val->value.v_timestamp.increment,
                    ((uint32_t*) citem->storage) + (2 * idx + 1),
                    sizeof(uint32_t));
-            success = 1;
             break;
         case TYPE_STRING:
             val->value_type = BSON_TYPE_UTF8;
             val->value.v_utf8.len = citem->type_arg;
             val->value.v_utf8.str = (char*)current_val;
-            success = 1;
             break;
         case TYPE_BINARY:
             val->value_type = BSON_TYPE_BINARY;
             val->value.v_binary.subtype = BSON_SUBTYPE_BINARY;
             val->value.v_binary.data_len = citem->type_arg;
             val->value.v_binary.data = current_val;
-            success = 1;
             break;
         case TYPE_BSON:
             // The first 4 bytes of the bson is the length.
@@ -1037,13 +1029,11 @@ int monary_make_bson_value_t(bson_value_t* val,
             val->value_type = BSON_TYPE_DOCUMENT;
             val->value.v_doc.data_len = len;
             val->value.v_doc.data = current_val;
-            success = 1;
             break;
         default:
             DEBUG("Unsupported type %d", citem->type);
             break;
     }
-    return success;
 }
 
 /**
@@ -1056,16 +1046,14 @@ int monary_make_bson_value_t(bson_value_t* val,
  * @param parent The bson document to append to
  * @param name_offset Offset into the field name (for nested documents)
  * @param depth Number of recursive calls made
- *
- * @return 1 if successful, 0 otherwise
  */
-int monary_bson_from_columns(monary_column_item* columns,
-                             int row,
-                             int col_start,
-                             int col_end,
-                             bson_t* parent,
-                             int name_offset,
-                             int depth){
+void monary_bson_from_columns(monary_column_item* columns,
+                              int row,
+                              int col_start,
+                              int col_end,
+                              bson_t* parent,
+                              int name_offset,
+                              int depth){
     bson_t child;
     bson_value_t val;
     char *field;
@@ -1077,7 +1065,7 @@ int monary_bson_from_columns(monary_column_item* columns,
     if (depth >= MONARY_MAX_RECURSION) {
         DEBUG("Max recursive depth (%d) exceed on row: %d",
               MONARY_MAX_RECURSION, row);
-        return 0;
+        return;
     }
     for (i = col_start; i < col_end; i++) {
         citem = columns + i;
@@ -1116,18 +1104,12 @@ int monary_bson_from_columns(monary_column_item* columns,
                 i = new_end - 1;
             } else {
                 // No nested document in this else case
-                if(monary_make_bson_value_t(&val, citem, row)) {
-                    bson_append_value(parent, citem->field + name_offset,
-                                      dot_idx, &val);
-                } else {
-                    DEBUG("Insert does not support Monary type %d.",
-                          citem->type);
-                    return 0;
-                }
+                monary_make_bson_value_t(&val, citem, row);
+                bson_append_value(parent, citem->field + name_offset,
+                                  dot_idx, &val);
             }
         }
     }
-    return 1;
 }
 
 /**
@@ -1251,11 +1233,8 @@ void monary_insert(mongoc_collection_t* collection,
             bson_oid_init_from_data(&oid, storage + (row * sizeof(bson_oid_t)));
             BSON_APPEND_OID(&document, "_id", &oid);
         }
-        if (!monary_bson_from_columns(coldata->columns, row, 0,
-                                      coldata->num_columns, &document,
-                                      0, 0)) {
-            goto end;
-        }
+        monary_bson_from_columns(coldata->columns, row, 0,
+                                 coldata->num_columns, &document, 0, 0);
         data_len += document.len;
         mongoc_bulk_operation_insert(bulk_op, &document);
         bson_reinit(&document);

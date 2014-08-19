@@ -8,6 +8,8 @@ _SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
                     "float64", "date", "id", "timestamp", "string",
                     "binary", "bson"]
 
+_CMONARY_MAX_RECURSION = 100
+
 
 class MonaryParam(object):
     """An object to be used as a param for Monary insert, remove, and update.
@@ -41,6 +43,10 @@ class MonaryParam(object):
                 array, field, mtype = array
         elif field == "":
             raise ValueError("Field name must not be empty.")
+        elif field.count(".") >= _CMONARY_MAX_RECURSION:
+            raise ValueError(
+                "Fields name %r exceeds max nested document level (%d)." %
+                (field, _CMONARY_MAX_RECURSION))
         elif mtype is None:
             mtype = str(array.data.dtype)
 
