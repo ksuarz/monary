@@ -122,12 +122,6 @@ MONARY_TYPES = {
     "length":    (20, numpy.uint32),
 }
 
-_SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
-                    "uint8", "uint16", "uint32", "uint64", "float32",
-                    "float64", "date", "id", "timestamp", "string",
-                    "binary", "bson"]
-
-
 def get_monary_numpy_type(orig_typename):
     """Given a common typename, find the corresponding cmonary type number,
        type argument, and numpy type object (or code).
@@ -214,9 +208,6 @@ def validate_insert_fields(fields):
 
        :returns: None
     """
-    if any(len(f) == 0 for f in fields):
-        raise ValueError("field names must not be empty")
-
     for f in fields:
         if f.endswith('.'):
             raise ValueError("invalid fieldname: %r, must not end in '.'" % f)
@@ -585,7 +576,7 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def insert(self, db, coll, data, fields, types=None, w=1):
+    def insert(self, db, coll, params, w=1):
         """Performs an insertion of data from arrays.
 
            The ``write`` concern is number of nodes that each document must be
@@ -596,88 +587,65 @@ class Monary(object):
 
            :param db: name of database
            :param coll: name of the collection to insert into
-           :param data: list of numpy masked arrays to be inserted
-           :param fields: list of fields to name the data to be inserted
-           :param types: (optional) corresponding list of field types
+           :param params: list of MonaryParams to be inserted
            :param w: (optional) the write concern
 
            :returns: A numpy array of the inserted documents ObjectIds. Masked
                      values indicate documents that failed to be inserted.
            :rtype: numpy.ma.core.MaskedArray
 
-           .. note:: Fields will be sorted before insertion. To ensure that _id
-                     is the first filled in all generated documents and that
-                     nested keys are consecutive, all keys will be sorted
-                     alphabetically before the insertions are performed. The
-                     corresponding types and data will be sorted the same way
-                     to maintain the original correspondence.
+           .. note:: Params will be sorted by field before insertion. To ensure
+                     that _id is the first filled in all generated documents
+                     and that nested keys are consecutive, all keys will be
+                     sorted alphabetically before the insertions are performed.
+                     The corresponding types and data will be sorted the same
+                     way to maintain the original correspondence.
         """
-        if types is None:
-            types = [str(arr.data.dtype) for arr in data]
-
-        if len(data) != len(fields) or len(fields) != len(types):
-            raise ValueError("fields, types, and data must all be the "
-                             "same length")
-        if len(fields) == 0:
+        if len(params) == 0:
             raise ValueError("cannot do an empty insert")
 
-        validate_insert_fields(fields)
-        if "_id" in fields:
-            idx = fields.index("_id")
-            if data[idx].mask.any():
-                raise ValueError("the _id array must not have any masked "
-                                 "values")
+        validate_insert_fields(list(map(lambda p: p.field, params)))
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
-        zipped = sorted(zip(fields, types, data),
-                        key=lambda x: x[0] if x != "_id" else chr(0))
-        fields = [x[0] for x in zipped]
-        types = [x[1] for x in zipped]
-        data = [x[2] for x in zipped]
+        params = sorted(params,
+                        key=lambda p: p.field if p.field != "_id" else chr(0))
 
-        for t in types:
-            if t.split(":")[0] not in _SUPPORTED_TYPES:
-                raise ValueError("cannot insert type %r" % t)
+        if params[0].field == "_id" and params[0].array.mask.any():
+            raise ValueError("the _id array must not have any masked values")
 
-        if len(set(len(x) for x in data)) != 1:
+        if len(set(len(p) for p in params)) != 1:
             raise ValueError("all given arrays must be of the same length")
 
         collection = None
         try:
-            coldata = cmonary.monary_alloc_column_data(len(data),
-                                                       len(data[0]))
-            for i, arr in enumerate(data):
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(types[i])
-
-                if arr.data.dtype != numpy_type:
-                    raise ValueError("error, wrong type specified. Given:"
-                                     " %r Expected: %r"
-                                     "" % (arr.data.dtype, numpy_type))
-
-                data_p = arr.data.ctypes.data_as(c_void_p)
-                mask_p = arr.mask.ctypes.data_as(c_void_p)
+            coldata = cmonary.monary_alloc_column_data(len(params),
+                                                       len(params[0]))
+            for i, param in enumerate(params):
+                data_p = param.array.data.ctypes.data_as(c_void_p)
+                mask_p = param.array.mask.ctypes.data_as(c_void_p)
                 cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
+                                               param.field.encode("utf-8"),
+                                               param.cmonary_type,
+                                               param.cmonary_type_arg,
                                                data_p, mask_p)
 
             # Create a new column for the ids to be returned
-            id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
+            id_data = cmonary.monary_alloc_column_data(1, len(params[0]))
 
-            if "_id" in fields:
+            if params[0].field == "_id":
                 # If the user specifies "_id", it will be sorted to the front.
-                ids = numpy.copy(data[0])
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                        get_monary_numpy_type(types[0])
+                ids = numpy.copy(params[0].array)
+                cmonary_type = params[0].cmonary_type
+                cmonary_type_arg = params[0].cmonary_type_arg
+                numpy_type = params[0].numpy_type
             else:
                 # Allocate a single column to return the generated ObjectIds.
                 cmonary_type, cmonary_type_arg, numpy_type = \
                         get_monary_numpy_type("id")
-                ids = numpy.zeros(len(data[0]), dtype=numpy_type)
+                ids = numpy.zeros(len(params[0]), dtype=numpy_type)
 
-            mask = numpy.ones(len(data[0]))
+            mask = numpy.ones(len(params[0]))
             ids = numpy.ma.masked_array(ids, mask)
             cmonary.monary_set_column_item(id_data, 0,
                                            "_id".encode("utf-8"),
