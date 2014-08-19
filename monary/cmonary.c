@@ -948,7 +948,6 @@ void monary_close_query(monary_cursor* cursor)
 case TYPENAME:                                                                   \
 val->value_type = BTYPENAME;                                                     \
 val->value.VKEY = (CAST_TYPE) *(((STORED_TYPE *) citem->storage) + idx);         \
-success = 1;                                                                     \
 break;
 
 /**
@@ -957,17 +956,14 @@ break;
  * @param val A pointer to the bson_value_t to populate.
  * @param citem The monary column that contains the value to use
  * @param idx The index of the storage to use.
- *
- * @return 1 if successful, 0 otherwise
  */
-int monary_make_bson_value_t(bson_value_t* val,
-                             monary_column_item* citem,
-                             int idx)
+void monary_make_bson_value_t(bson_value_t* val,
+                              monary_column_item* citem,
+                              int idx)
 {
     uint32_t len;
     uint8_t* storage = ((uint8_t*) citem->storage);
     uint8_t* current_val = storage + (idx * citem->type_arg);
-    int success = 0;
     val->padding = 0;
     switch (citem->type) {
         MONARY_SET_BSON_VALUE(TYPE_BOOL, BSON_TYPE_BOOL, v_bool, bool, bool)
@@ -997,7 +993,6 @@ int monary_make_bson_value_t(bson_value_t* val,
             val->value_type = BSON_TYPE_OID;
             bson_oid_init_from_data(&(val->value.v_oid),
                                     storage + (idx * sizeof(bson_oid_t)));
-            success = 1;
             break;
         case TYPE_TIMESTAMP:
             val->value_type = BSON_TYPE_TIMESTAMP;
@@ -1007,20 +1002,17 @@ int monary_make_bson_value_t(bson_value_t* val,
             memcpy(&val->value.v_timestamp.increment,
                    ((uint32_t*) citem->storage) + (2 * idx + 1),
                    sizeof(uint32_t));
-            success = 1;
             break;
         case TYPE_STRING:
             val->value_type = BSON_TYPE_UTF8;
             val->value.v_utf8.len = citem->type_arg;
             val->value.v_utf8.str = (char*)current_val;
-            success = 1;
             break;
         case TYPE_BINARY:
             val->value_type = BSON_TYPE_BINARY;
             val->value.v_binary.subtype = BSON_SUBTYPE_BINARY;
             val->value.v_binary.data_len = citem->type_arg;
             val->value.v_binary.data = current_val;
-            success = 1;
             break;
         case TYPE_BSON:
             // The first 4 bytes of the bson is the length.
@@ -1037,13 +1029,11 @@ int monary_make_bson_value_t(bson_value_t* val,
             val->value_type = BSON_TYPE_DOCUMENT;
             val->value.v_doc.data_len = len;
             val->value.v_doc.data = current_val;
-            success = 1;
             break;
         default:
             DEBUG("Unsupported type %d", citem->type);
             break;
     }
-    return success;
 }
 
 /**
@@ -1056,16 +1046,14 @@ int monary_make_bson_value_t(bson_value_t* val,
  * @param parent The bson document to append to
  * @param name_offset Offset into the field name (for nested documents)
  * @param depth Number of recursive calls made
- *
- * @return 1 if successful, 0 otherwise
  */
-int monary_bson_from_columns(monary_column_item* columns,
-                             int row,
-                             int col_start,
-                             int col_end,
-                             bson_t* parent,
-                             int name_offset,
-                             int depth){
+void monary_bson_from_columns(monary_column_item* columns,
+                              int row,
+                              int col_start,
+                              int col_end,
+                              bson_t* parent,
+                              int name_offset,
+                              int depth){
     bson_t child;
     bson_value_t val;
     char *field;
@@ -1077,7 +1065,7 @@ int monary_bson_from_columns(monary_column_item* columns,
     if (depth >= MONARY_MAX_RECURSION) {
         DEBUG("Max recursive depth (%d) exceed on row: %d",
               MONARY_MAX_RECURSION, row);
-        return 0;
+        return;
     }
     for (i = col_start; i < col_end; i++) {
         citem = columns + i;
@@ -1116,18 +1104,53 @@ int monary_bson_from_columns(monary_column_item* columns,
                 i = new_end - 1;
             } else {
                 // No nested document in this else case
-                if(monary_make_bson_value_t(&val, citem, row)) {
-                    bson_append_value(parent, citem->field + name_offset,
-                                      dot_idx, &val);
-                } else {
-                    DEBUG("Insert does not support Monary type %d.",
-                          citem->type);
-                    return 0;
-                }
+                monary_make_bson_value_t(&val, citem, row);
+                bson_append_value(parent, citem->field + name_offset,
+                                  dot_idx, &val);
             }
         }
     }
-    return 1;
+}
+
+/**
+ * Mask all indices that the server says had an error.
+ *
+ * @param errors A bson_iter containing the array of errors.
+ * @param mask A buffer representing the mask.
+ * @param offset The offset into the mask at which to start writing.
+ *
+ * @return number masked if successful, -1 otherwise
+ */
+int monary_mask_failed_writes(bson_iter_t* errors,
+                              unsigned char* mask,
+                              int offset)
+{
+    bson_iter_t array_iter;
+    bson_iter_t document_iter;
+    int index;
+    int num_masked = 0;
+
+    if (!BSON_ITER_HOLDS_ARRAY(errors)) {
+        return -1;
+    }
+    if (!bson_iter_recurse(errors, &array_iter)) {
+        return -1;
+    }
+    while (bson_iter_next(&array_iter)) {
+        if (bson_iter_recurse(&array_iter, &document_iter) &&
+            bson_iter_find(&document_iter, "index")) {
+            if (BSON_ITER_HOLDS_INT32(&document_iter)) {
+                index = bson_iter_int32(&document_iter);
+            } else {
+                return -1;
+            }
+            mask[index + offset] = 1;
+            num_masked++;
+        } else{
+            return -1;
+        }
+    }
+    return num_masked;
 }
 
 /**
@@ -1136,53 +1159,63 @@ int monary_bson_from_columns(monary_column_item* columns,
  * @param collection The MongoDB collection to insert to.
  * @param coldata The column data storing the values to insert.
  * @param id_data The column data that will return the generated object ids,
-                  or Null if the '_id' field has been provided.
+ *                or Null if the '_id' field has been provided.
  * @param client The connection to the database.
- *
- * @return The number of documents inserted into the database.
+ * @param write_concern_w The number of nodes that each document must be
+ *                        written to before the server acknowledges the write.
  */
-int monary_insert(mongoc_collection_t* collection,
-                  monary_column_data* coldata,
-                  monary_column_data* id_data,
-                  mongoc_client_t* client)
+void monary_insert(mongoc_collection_t* collection,
+                   monary_column_data* coldata,
+                   monary_column_data* id_data,
+                   mongoc_client_t* client,
+                   int write_concern_w)
 {
     bson_error_t error;
     bson_iter_t bsonit;
-    bson_iter_t descendant;
     bson_oid_t oid;
     bson_t document;
     bson_t reply;
     monary_column_item* citem;
     mongoc_bulk_operation_t* bulk_op;
+    mongoc_write_concern_t* write_concern;
+    bool id_provided;
+    char* str;
     int data_len;
     int i;
-    int len;
     int max_message_size;
+    int num_docs;
     int num_inserted;
+    int num_processed;
     int row;
-    uint32_t num_docs;
     uint8_t* storage;
 
     // Sanity checks
-    if (!collection || !coldata) {
+    if (!collection || !coldata || !id_data) {
         DEBUG("%s", "Given a NULL param.");
-        return 0;
+        return;
     }
 
-    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+    write_concern = mongoc_write_concern_new();
+    mongoc_write_concern_set_w(write_concern, write_concern_w);
+
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false,
+                                                      write_concern);
 
     bson_init(&document);
     bson_init(&reply);
     num_inserted = 0;
+    num_processed = 0;
 
     max_message_size = mongoc_client_get_max_message_size(client);
     DEBUG("Max message size: %d", max_message_size);
     data_len = 0;
 
+    id_provided = (strcmp(coldata->columns->field, "_id") == 0);
+
     // Generate all ObjectId's in advance if the user has not specified "_id"
-    if (id_data) {
+    if (!id_provided) {
         storage = id_data->columns->storage;
-        for (row = 0; row < coldata->num_rows; row++) {
+        for (i = 0; i < coldata->num_rows; i++) {
             bson_oid_init(&oid, NULL);
             memcpy(storage, oid.bytes, sizeof(bson_oid_t));
             // Move the storage pointer to the next 12 bytes.
@@ -1195,17 +1228,13 @@ int monary_insert(mongoc_collection_t* collection,
     DEBUG("Inserting %d documents with %d keys.",
           coldata->num_rows, coldata->num_columns);
     for (row = 0; row < coldata->num_rows; row++) {
-        if (id_data) {
+        if (!id_provided) {
             // If _id is not provided, append the generated ObjectId.
             bson_oid_init_from_data(&oid, storage + (row * sizeof(bson_oid_t)));
             BSON_APPEND_OID(&document, "_id", &oid);
         }
-        if (!monary_bson_from_columns(coldata->columns, row, 0,
-                                      coldata->num_columns, &document,
-                                      0, 0)) {
-            num_inserted *= -1;
-            goto end;
-        }
+        monary_bson_from_columns(coldata->columns, row, 0,
+                                 coldata->num_columns, &document, 0, 0);
         data_len += document.len;
         mongoc_bulk_operation_insert(bulk_op, &document);
         bson_reinit(&document);
@@ -1215,33 +1244,59 @@ int monary_insert(mongoc_collection_t* collection,
         // max_message_size, roughly 1 batch for OP_INSERT, roughly 3 for
         // insert commands.
         if (data_len > max_message_size || row == (coldata->num_rows - 1)) {
-            num_docs = row + 1 - num_inserted;
+            num_docs = row + 1 - num_processed;
+            // Unmask the values that will be inserted.
+            for (i = num_processed; i <= row; i++) {
+                (id_data->columns->mask)[i] = 0;
+            }
             DEBUG("Inserting documents %d through %d, total data: %d",
-                  num_inserted + 1, row + 1, data_len);
+                  num_processed + 1, row + 1, data_len);
             if (mongoc_bulk_operation_execute(bulk_op, &reply, &error)) {
                 num_inserted += num_docs;
                 data_len = 0;
             } else {
-                DEBUG("Failed to insert documents %d through %d",
-                      num_inserted + 1, row + 1);
-                if (error.message) {
-                    DEBUG("Error message: %s", error.message);
+                DEBUG("Error message: %s", error.message);
+#ifndef NDEBUG
+                str = bson_as_json(&reply, NULL);
+                DEBUG("Server reply: %s", str);
+                bson_free(str);
+#endif
+                // Mask all of the values that failed.
+                if (bson_iter_init_find(&bsonit, &reply, "writeErrors")) {
+                    i = monary_mask_failed_writes(&bsonit,
+                                                  id_data->columns->mask,
+                                                  num_processed);
+                    if (i != -1) {
+                        num_inserted += num_docs - i;
+                    } else {
+                        // If the document masking failed (from a bad server
+                        // reply) then mask everything that we tried to write.
+                        for (i = num_processed; i <= row; i++) {
+                            (id_data->columns->mask)[i] = 1;
+                        }
+                    }
+                } else {
+                    DEBUG("%s", "Server reply did not contain writeErrors");
+                    for (i = num_processed; i <= row; i++) {
+                        (id_data->columns->mask)[i] = 1;
+                    }
+                    goto end;
                 }
-                num_inserted *= -1;
-                goto end;
             }
+            num_processed += num_docs;
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
-                                                              false, NULL);
+                                                              false,
+                                                              write_concern);
             bson_reinit(&reply);
         }
     }
 end:
-    DEBUG("Inserted %d of %d documents", num_inserted, coldata->num_rows);
+    DEBUG("Inserted %d of %d documents", num_inserted, num_processed);
     bson_destroy(&document);
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk_op);
-    return num_inserted;
+    mongoc_write_concern_destroy(write_concern);
 }
 
 /**
@@ -1310,14 +1365,8 @@ int monary_remove(mongoc_collection_t* collection,
     }
 
     for (row = 0; row < coldata->num_rows; row++) {
-        if (!monary_bson_from_columns(coldata->columns, row, 0,
-                                      coldata->num_columns,
-                                      &selector, 0, 0)) {
-            DEBUG("Failed to make BSON from row %d", row);
-            num_removed *= -1;
-            num_removed--;
-            goto end;
-        }
+        monary_bson_from_columns(coldata->columns, row, 0,
+                                 coldata->num_columns, &selector, 0, 0);
 
         data_len += selector.len;
         if (just_one) {

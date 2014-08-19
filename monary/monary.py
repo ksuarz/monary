@@ -76,7 +76,7 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPPP:I",
+    "monary_insert:PPPPI:I",
     "monary_remove:PPPB:I"
 ]
 
@@ -123,12 +123,6 @@ MONARY_TYPES = {
     "size":      (19, numpy.uint32),
     "length":    (20, numpy.uint32),
 }
-
-_SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
-                    "uint8", "uint16", "uint32", "uint64", "float32",
-                    "float64", "date", "id", "timestamp", "string",
-                    "binary", "bson"]
-
 
 def get_monary_numpy_type(orig_typename):
     """Given a common typename, find the corresponding cmonary type number,
@@ -236,9 +230,6 @@ def validate_bson_fields(fields, allow_dollar=False):
 
        :returns: None
     """
-    if any(len(f) == 0 for f in fields):
-        raise ValueError("field names must not be empty")
-
     for f in fields:
         if f.endswith('.'):
             raise ValueError("invalid fieldname: %r, must not end in '.'" % f)
@@ -607,103 +598,96 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def insert(self, db, coll, data, fields, types=None):
+    def insert(self, db, coll, params, w=1):
         """Performs an insertion of data from arrays.
+
+           The ``write`` concern is number of nodes that each document must be
+           written to before the server acknowledges the write. See the MongoDB
+           manual entry on Write Concern
+           (http://docs.mongodb.org/manual/reference/write-concern/) for more
+           details.
 
            :param db: name of database
            :param coll: name of the collection to insert into
-           :param data: list of numpy masked arrays to be inserted
-           :param fields: list of fields to name the data to be inserted
-           :param types: (optional) corresponding list of field types
+           :param params: list of MonaryParams to be inserted
+           :param w: (optional) the write concern
 
-           :returns: A numpy array of the inserted documents ObjectIds
-           :rtype: numpy.ndarray
+           :returns: A numpy array of the inserted documents ObjectIds. Masked
+                     values indicate documents that failed to be inserted.
+           :rtype: numpy.ma.core.MaskedArray
 
-           .. note:: Fields will be sorted before insertion. To ensure that _id
-                     is the first filled in all generated documents and that
-                     nested keys are consecutive, all keys will be sorted
-                     alphabetically before the insertions are performed. The
-                     corresponding types and data will be sorted the same way
-                     to maintain the original correspondence.
+           .. note:: Params will be sorted by field before insertion. To ensure
+                     that _id is the first filled in all generated documents
+                     and that nested keys are consecutive, all keys will be
+                     sorted alphabetically before the insertions are performed.
+                     The corresponding types and data will be sorted the same
+                     way to maintain the original correspondence.
         """
-        if types is None:
-            types = [str(arr.data.dtype) for arr in data]
-
-        if len(data) != len(fields) or len(fields) != len(types):
-            raise ValueError("fields, types, and data must all be the "
-                             "same length")
-        if len(fields) == 0:
+        if len(params) == 0:
             raise ValueError("cannot do an empty insert")
 
-        validate_bson_fields(fields)
-        if "_id" in fields:
-            idx = fields.index("_id")
-            if data[idx].mask.any():
-                raise ValueError("the _id array must not have any masked "
-                                 "values")
+        validate_bson_fields(list(map(lambda p: p.field, params)))
 
-        fields, types, data = sort_fields_types_data(fields, types, data)
+        # To ensure that _id is the first key, the string "_id" is mapped
+        # to chr(0). This will put "_id" in front of any other field.
+        params = sorted(params,
+                        key=lambda p: p.field if p.field != "_id" else chr(0))
 
-        for t in types:
-            if t.split(":")[0] not in _SUPPORTED_TYPES:
-                raise ValueError("cannot insert type %r" % t)
+        if params[0].field == "_id" and params[0].array.mask.any():
+            raise ValueError("the _id array must not have any masked values")
 
-        if len(set(len(x) for x in data)) != 1:
+        if len(set(len(p) for p in params)) != 1:
             raise ValueError("all given arrays must be of the same length")
 
         collection = None
         try:
-            coldata = cmonary.monary_alloc_column_data(len(data),
-                                                       len(data[0]))
-            for i, arr in enumerate(data):
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(types[i])
-
-                if arr.data.dtype != numpy_type:
-                    raise ValueError("error, wrong type specified. Given:"
-                                     " %r Expected: %r"
-                                     "" % (arr.data.dtype, numpy_type))
-
-                data_p = arr.data.ctypes.data_as(c_void_p)
-                mask_p = arr.mask.ctypes.data_as(c_void_p)
+            coldata = cmonary.monary_alloc_column_data(len(params),
+                                                       len(params[0]))
+            for i, param in enumerate(params):
+                data_p = param.array.data.ctypes.data_as(c_void_p)
+                mask_p = param.array.mask.ctypes.data_as(c_void_p)
                 cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
+                                               param.field.encode("utf-8"),
+                                               param.cmonary_type,
+                                               param.cmonary_type_arg,
                                                data_p, mask_p)
 
             # Create a new column for the ids to be returned
-            id_data = None
-            ids = None
-            if "_id" in fields:
+            id_data = cmonary.monary_alloc_column_data(1, len(params[0]))
+
+            if params[0].field == "_id":
                 # If the user specifies "_id", it will be sorted to the front.
-                ids = numpy.copy(data[0])
+                ids = numpy.copy(params[0].array)
+                cmonary_type = params[0].cmonary_type
+                cmonary_type_arg = params[0].cmonary_type_arg
+                numpy_type = params[0].numpy_type
             else:
-                # Allocate a single collumn to return the generated ObjectIds.
-                id_data = cmonary.monary_alloc_column_data(1, len(data[0]))
+                # Allocate a single column to return the generated ObjectIds.
                 cmonary_type, cmonary_type_arg, numpy_type = \
                         get_monary_numpy_type("id")
+                ids = numpy.zeros(len(params[0]), dtype=numpy_type)
 
-                ids = numpy.zeros(len(data[0]), dtype=numpy_type)
-                cmonary.monary_set_column_item(id_data, 0,
-                                               "_id".encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
-                                               ids.ctypes.data_as(c_void_p),
-                                               None)
+            mask = numpy.ones(len(params[0]))
+            ids = numpy.ma.masked_array(ids, mask)
+            cmonary.monary_set_column_item(id_data, 0,
+                                           "_id".encode("utf-8"),
+                                           cmonary_type, cmonary_type_arg,
+                                           ids.data.ctypes.data_as(c_void_p),
+                                           ids.mask.ctypes.data_as(c_void_p))
 
             collection = self._get_collection(db, coll)
             if collection is None:
                 raise ValueError("unable to get the collection")
 
-            inserted = cmonary.monary_insert(collection, coldata, id_data,
-                                             self._connection)
+            cmonary.monary_insert(collection, coldata, id_data,
+                                  self._connection, w)
 
-            if inserted < 1:
-                raise RuntimeError("insert failed after inserting %d "
-                                   "documents" % abs(inserted))
             return ids
         finally:
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
+            if id_data is not None:
+                cmonary.monary_free_column_data(id_data)
             if collection is not None:
                 cmonary.monary_destroy_collection(collection)
 
@@ -815,74 +799,47 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def remove(self, db, coll, data, fields, types=None, just_one=False):
+    def remove(self, db, coll, params, just_one=False):
         """Performs a bulk removal based on data from arrays.
 
            This is a bulk remove, so selectors for this are not the same as in
            the Mongo shell. If you have a numpy array of ObjectIds, you can
            remove all of the documents that have those Ids like this:
-           ``client.remove("db", "col", ["_id"], ids, ["id"])``
+           ``client.remove("db", "col", [MonaryParam(ids, "_id", "id")])``
            You can also remove every document in the database like this:
-           ``client.remove("db", "col", [], [])``
-
-           Notice that the types are optional; this is because types like
-           ObjectId, binary, and BSON, are all stored as void pointers and thus
-           an array of void pointers has an ambiguous type. This also applies
-           to datetimes and timestamps which are stored as 64-bit integer. The
-           type of any array of bools, ints, uints, or floats can be inferred.
-           This behavior is identical to that of ``insert``.
+           ``client.remove("db", "col", [])``
 
            :param db: name of database
            :param coll: name of the collection on which to perform the remove
-           :param data: list of numpy masked arrays to create the selectors
-           :param fields: list of field names for the selectors
-           :param types: (optional) corresponding list of field types
+           :param params: list of MonaryParams to be inserted
            :param just_one: (optional) specify whether to remove multiple or
                             just one document per selector
 
            :returns: the number of documents removed
            :rtype: int
         """
-        if types is None:
-            types = [str(arr.data.dtype) for arr in data]
+        validate_bson_fields(list(map(lambda p: p.field, params)))
 
-        if len(data) != len(fields) or len(fields) != len(types):
-            raise ValueError("fields, types, and data must all be the "
-                             "same length")
+        # To ensure that _id is the first key, the string "_id" is mapped
+        # to chr(0). This will put "_id" in front of any other field.
+        params = sorted(params,
+                        key=lambda p: p.field if p.field != "_id" else chr(0))
 
-        validate_bson_fields(fields, allow_dollar=True)
-
-        fields, types, data = sort_fields_types_data(fields, types, data)
-
-        for t in types:
-            if t.split(":")[0] not in _SUPPORTED_TYPES:
-                raise ValueError("cannot remove type %r" % t)
-
-        if len(set(map(len, data))) > 1:
+        if len(set(len(p) for p in params)) > 1:
             raise ValueError("all given arrays must be of the same length")
-
-        if len(data) > 0 and len(data[0]) == 0:
-            raise ValueError("given an empty masked array of values to remove")
 
         collection = None
         try:
-            num_rows = len(data[0]) if len(data) > 0 else 0
-            coldata = cmonary.monary_alloc_column_data(len(data),
+            num_rows = len(params[0]) if len(params) > 0 else 0
+            coldata = cmonary.monary_alloc_column_data(len(params),
                                                        num_rows)
-            for i, arr in enumerate(data):
-                cmonary_type, cmonary_type_arg, numpy_type = \
-                    get_monary_numpy_type(types[i])
-
-                if arr.data.dtype != numpy_type:
-                    raise ValueError(
-                        "error, wrong type specified. Given: %r Expected: %r" %
-                        (arr.data.dtype, numpy_type))
-
-                data_p = arr.data.ctypes.data_as(c_void_p)
-                mask_p = arr.mask.ctypes.data_as(c_void_p)
+            for i, param in enumerate(params):
+                data_p = param.array.data.ctypes.data_as(c_void_p)
+                mask_p = param.array.mask.ctypes.data_as(c_void_p)
                 cmonary.monary_set_column_item(coldata, i,
-                                               fields[i].encode("utf-8"),
-                                               cmonary_type, cmonary_type_arg,
+                                               param.field.encode("utf-8"),
+                                               param.cmonary_type,
+                                               param.cmonary_type_arg,
                                                data_p, mask_p)
 
             collection = self._get_collection(db, coll)
