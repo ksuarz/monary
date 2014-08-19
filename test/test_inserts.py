@@ -11,11 +11,11 @@ import time
 
 import bson
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 import pymongo
 
-import monary
-from monary.monary import mvoid_to_bson_id, validate_bson_fields
+from monary import Monary, mvoid_to_bson_id, MonaryParam
+from monary.monary import validate_bson_fields
 
 PY3 = sys.version_info[0] >= 3
 
@@ -175,11 +175,13 @@ def setup():
 
 
 def test_insert_and_retrieve_no_types():
-    with monary.Monary() as m:
-        ids = m.insert("monary_test", "data", TYPE_INFERABLE_ARRAYS + [seq],
-                       ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                        "x9", "x10", "x11", "sequence"])
-        assert len(ids) == NUM_TEST_RECORDS
+    params = MonaryParam.from_lists(
+        TYPE_INFERABLE_ARRAYS + [seq],
+        ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9",
+         "x10", "x11", "sequence"])
+    with Monary() as m:
+        ids = m.insert("monary_test", "data", params)
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11"],
@@ -194,12 +196,12 @@ def test_insert_and_retrieve():
     arrays = TYPE_INFERABLE_ARRAYS + NON_TYPE_INFERABLE_ARRAYS + [seq]
     types = TYPE_INFERABLE_ARRAYS_TYPES + NON_TYPE_INFERABLE_ARRAYS_TYPES \
         + [seq_type]
-    with monary.Monary() as m:
-        ids = m.insert("monary_test", "data", arrays,
-                       ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
-                        "x9", "x10", "x11", "x12", "x13", "x14", "x15",
-                        "sequence"], types)
-        assert len(ids) == NUM_TEST_RECORDS
+    params = MonaryParam.from_lists(
+        arrays, ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10",
+                 "x11", "x12", "x13", "x14", "x15", "sequence"], types)
+    with Monary() as m:
+        ids = m.insert("monary_test", "data", params)
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         retrieved = m.query("monary_test", "data", {},
                             ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8",
                              "x9", "x10", "x11", "x12", "x13", "x14", "x15",
@@ -225,17 +227,20 @@ def test_insert_and_retrieve():
 
 
 def test_oid():
-    with monary.Monary() as m:
+    with Monary() as m:
         # Insert documents to generate ObjectIds.
-        ids = m.insert("monary_test", "data", [bool_arr, seq],
-                       ["dummy", "sequence"])
-        assert len(ids) == NUM_TEST_RECORDS
-        ids = ma.masked_array(ids, np.zeros(NUM_TEST_RECORDS))
+        ids = m.insert("monary_test", "data",
+                       MonaryParam.from_lists([bool_arr, seq],
+                                              ["dummy", "sequence"]))
+        assert len(ids) == ids.count() == NUM_TEST_RECORDS
         # Increment the sequence so sorting still works
         seq2 = seq + NUM_TEST_RECORDS
-        ids2 = m.insert("monary_test", "data", [ids, seq2],
-                        ["oid", "sequence"], ["id", "int64"])
-        assert len(ids2) == NUM_TEST_RECORDS
+
+        ids2 = m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists(
+                [ids, seq2], ["oid", "sequence"], ["id", "int64"]))
+        assert len(ids2) == ids.count() == NUM_TEST_RECORDS
         # Get back the ids from the original insert (_id) and the ids that
         # were manually inserted (oid)
         retrieved = m.query("monary_test", "data", {},
@@ -290,10 +295,12 @@ def test_nested_insert():
                                dtype="bool")
     masked = ma.masked_array(rand_bools(), np.ones(NUM_TEST_RECORDS),
                              dtype="bool")
-    with monary.Monary() as m:
-        m.insert("monary_test", "data", [squares, random, seq, unmasked,
-                 masked], ["data.sqr", "data.rand", "sequence", "x.y.real",
-                 "x.y.fake"])
+    with Monary() as m:
+        m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists(
+                [squares, random, seq, unmasked, masked],
+                ["data.sqr", "data.rand", "sequence", "x.y.real", "x.y.fake"]))
     with pymongo.MongoClient() as c:
         col = c.monary_test.data
         for i, doc in enumerate(col.find().sort(
@@ -309,15 +316,18 @@ def test_nested_insert():
 def test_retrieve_nested():
     arrays = [bool_arr, int8_arr, int16_arr, int32_arr, int64_arr, float32_arr,
               float64_arr, string_arr, seq]
-    with monary.Monary() as m:
-        m.insert("monary_test", "data", arrays,
-                 ["a.b.c.d.e.f.g.h.x1", "a.b.c.d.e.f.g.h.x2",
-                  "a.b.c.d.e.f.g.h.x3", "a.b.c.d.e.f.g.h.x4",
-                  "a.b.c.d.e.f.g.h.x5", "a.b.c.d.e.f.g.h.x6",
-                  "a.b.c.d.e.f.g.h.x7", "a.b.c.d.e.f.g.h.x8",
-                  "sequence"],
-                 ["bool", "int8", "int16", "int32", "int64",
-                  "float32", "float64", "string:10", "int64"])
+    with Monary() as m:
+        m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists(
+                arrays,
+                ["a.b.c.d.e.f.g.h.x1", "a.b.c.d.e.f.g.h.x2",
+                 "a.b.c.d.e.f.g.h.x3", "a.b.c.d.e.f.g.h.x4",
+                 "a.b.c.d.e.f.g.h.x5", "a.b.c.d.e.f.g.h.x6",
+                 "a.b.c.d.e.f.g.h.x7", "a.b.c.d.e.f.g.h.x8",
+                 "sequence"],
+                ["bool", "int8", "int16", "int32", "int64",
+                 "float32", "float64", "string:10", "int64"]))
     with pymongo.MongoClient() as c:
         col = c.monary_test.data
         for i, doc in enumerate(col.find().sort(
@@ -346,10 +356,12 @@ def test_insert_bson():
     max_len = max(map(len, encoded))
     encoded = ma.masked_array(encoded, np.zeros(NUM_TEST_RECORDS),
                               "<V%d" % max_len)
-    with monary.Monary() as m:
-        m.insert("monary_test", "data", [encoded, seq],
-                 ["doc", "sequence"],
-                 ["bson:%d" % max_len, "int64"])
+    with Monary() as m:
+        m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists([encoded, seq],
+                                   ["doc", "sequence"],
+                                   ["bson:%d" % max_len, "int64"]))
     with pymongo.MongoClient() as c:
         col = c.monary_test.data
         for i, doc in enumerate(col.find().sort(
@@ -364,16 +376,18 @@ def test_custom_id():
                                  np.zeros(NUM_TEST_RECORDS))
     # To avoid collision with seq.
     f_unmasked += 0.5
-    with monary.Monary() as m:
-        id_seq = m.insert("monary_test", "data",
-                          [int16_arr, seq], ["num", "_id"])
-        assert len(id_seq) == NUM_TEST_RECORDS
+    with Monary() as m:
+        id_seq = m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists([int16_arr, seq], ["num", "_id"]))
+        assert len(id_seq) == id_seq.count() == NUM_TEST_RECORDS
         assert (id_seq == seq.data).all()
-        id_float = m.insert("monary_test", "data",
-                            [seq, date_arr, f_unmasked],
-                            ["sequence", "x.date", "_id"],
-                            ["int64", "date", "float64"])
-        assert len(id_float) == NUM_TEST_RECORDS
+        id_float = m.insert(
+            "monary_test", "data",
+            MonaryParam.from_lists([seq, date_arr, f_unmasked],
+                                   ["sequence", "x.date", "_id"],
+                                   ["int64", "date", "float64"]))
+        assert len(id_float) == id_float.count() == NUM_TEST_RECORDS
         assert (id_float == f_unmasked.data).all()
         # BSON type 18 is int64.
         data, = m.query("monary_test", "data", {"_id": {"$type": 18}},
@@ -385,6 +399,39 @@ def test_custom_id():
                         ["_id"], ["float64"], sort="sequence")
         assert len(data) == data.count() == NUM_TEST_RECORDS
         assert (data == f_unmasked).all()
+    teardown()
+
+
+def test_insert_errors():
+    with Monary() as m:
+        a = ma.masked_array([1, 3], [False] * 2, dtype="int8")
+        b = ma.masked_array([1, 2, 3, 4], [False] * 4, dtype="int8")
+        a_id = m.insert("monary_test", "data", [MonaryParam(a, "_id")])
+        assert len(a_id) == a_id.count() == len(a)
+        b_id = m.insert("monary_test", "data", [MonaryParam(b, "_id")])
+        assert len(b_id) == len(b)
+        assert b_id.count() == len(b) - len(a)
+        teardown()
+
+        # ``threes`` is a list of numbers counting up by 3, i.e. 0 3 6 9 ...
+        num_threes = int(NUM_TEST_RECORDS / 3) + 1
+        threes = np.arange(num_threes, dtype="int64")
+        threes *= 3
+        threes = ma.masked_array(threes, np.zeros(num_threes))
+        m.insert("monary_test", "data", [MonaryParam(threes, "_id")])
+
+        nums = ma.masked_array(
+            np.arange(NUM_TEST_RECORDS, dtype="int64"),
+            np.zeros(NUM_TEST_RECORDS))
+        ids = m.insert("monary_test", "data", [MonaryParam(nums, "_id")])
+
+        assert len(ids) == len(nums)
+        assert ids.count() == len(nums) - len(threes)
+        # Everything that's a 'three' should be masked.
+        assert ids.mask[::3].all()
+        # Nothing that's not a 'three' should be masked.
+        assert not ids.mask[1::3].any()
+        assert not ids.mask[2::3].any()
     teardown()
 
 
