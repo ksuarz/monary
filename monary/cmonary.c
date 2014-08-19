@@ -1320,6 +1320,7 @@ int monary_remove(mongoc_collection_t* collection,
     bson_t selector;
     monary_column_item* citem;
     mongoc_bulk_operation_t* bulk_op;
+    char* str;
     int data_len;
     int i;
     int max_message_size;
@@ -1397,16 +1398,19 @@ int monary_remove(mongoc_collection_t* collection,
                     num_removed--;
                     goto end;
                 }
-            } else {
+            }
+#ifndef NDEBUG
+            else {
                 DEBUG("Failed to remove using selectors %d through %d",
                       selectors_used + 1, row + 1);
                 if (error.message) {
                     DEBUG("Error message: %s", error.message);
                 }
-                num_removed *= -1;
-                num_removed--;
-                goto end;
+                str = bson_as_json(&reply, NULL);
+                DEBUG("Server reply: %s", str);
+                bson_free(str);
             }
+#endif
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
                                                               false, NULL);

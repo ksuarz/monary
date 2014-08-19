@@ -626,12 +626,12 @@ class Monary(object):
         if len(params) == 0:
             raise ValueError("cannot do an empty insert")
 
-        validate_bson_fields(list(map(lambda p: p.field, params)))
+        validate_bson_fields(list(map(lambda p: p.field, params)), True)
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
-        params = sorted(params,
-                        key=lambda p: p.field if p.field != "_id" else chr(0))
+        params = sorted(
+            params, key=lambda p: p.field if p.field != "_id" else chr(0))
 
         if params[0].field == "_id" and params[0].array.mask.any():
             raise ValueError("the _id array must not have any masked values")
