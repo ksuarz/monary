@@ -198,7 +198,7 @@ def test_insert_and_retrieve():
         + [seq_type]
     params = MonaryParam.from_lists(
         arrays, ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10",
-                 "x11", "x12", "x13", "x14", "x15","sequence"], types)
+                 "x11", "x12", "x13", "x14", "x15", "sequence"], types)
     with Monary() as m:
         ids = m.insert("monary_test", "data", params)
         assert len(ids) == ids.count() == NUM_TEST_RECORDS
@@ -319,14 +319,15 @@ def test_retrieve_nested():
     with Monary() as m:
         m.insert(
             "monary_test", "data",
-            MonaryParam.from_lists(arrays,
+            MonaryParam.from_lists(
+                arrays,
                 ["a.b.c.d.e.f.g.h.x1", "a.b.c.d.e.f.g.h.x2",
                  "a.b.c.d.e.f.g.h.x3", "a.b.c.d.e.f.g.h.x4",
                  "a.b.c.d.e.f.g.h.x5", "a.b.c.d.e.f.g.h.x6",
                  "a.b.c.d.e.f.g.h.x7", "a.b.c.d.e.f.g.h.x8",
                  "sequence"],
-                 ["bool", "int8", "int16", "int32", "int64",
-                  "float32", "float64", "string:10", "int64"]))
+                ["bool", "int8", "int16", "int32", "int64",
+                 "float32", "float64", "string:10", "int64"]))
     with pymongo.MongoClient() as c:
         col = c.monary_test.data
         for i, doc in enumerate(col.find().sort(

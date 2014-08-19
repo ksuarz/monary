@@ -1280,7 +1280,6 @@ void monary_insert(mongoc_collection_t* collection,
                     for (i = num_processed; i <= row; i++) {
                         (id_data->columns->mask)[i] = 1;
                     }
-                    // If the server didn't reply with writeErrors, exit.
                     goto end;
                 }
             }
