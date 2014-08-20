@@ -81,7 +81,7 @@ FUNCDEFS = [
     "monary_create_write_concern:IIBBS:P",
     "monary_destroy_write_concern:P:0",
     "monary_insert:PPPPP:0",
-    "monary_remove:PPPB:I"
+    "monary_remove:PPPBP:I"
 ]
 
 MAX_COLUMNS = 1024
@@ -803,7 +803,7 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def remove(self, db, coll, params, just_one=False):
+    def remove(self, db, coll, params, just_one=False, write_concern=None):
         """Performs a bulk removal based on data from arrays.
 
            This is a bulk remove, so selectors for this are not the same as in
@@ -818,6 +818,7 @@ class Monary(object):
            :param params: list of MonaryParams to be inserted
            :param just_one: (optional) specify whether to remove multiple or
                             just one document per selector
+           :param write_concern: a WriteConcern object.
 
            :returns: the number of documents removed
            :rtype: int
@@ -850,16 +851,20 @@ class Monary(object):
             if collection is None:
                 raise ValueError("unable to get the collection")
 
-            removed = cmonary.monary_remove(collection,
-                                            coldata,
-                                            self._connection,
-                                            just_one)
+            if write_concern is None:
+                write_concern = WriteConcern()
+
+            removed = cmonary.monary_remove(
+                collection, coldata, self._connection, just_one,
+                write_concern.get_c_write_concern())
 
             if removed < 0:
                 raise RuntimeError("remove failed after removing %d "
                                    "documents" % (abs(removed) - 1))
             return removed
         finally:
+            if write_concern is not None:
+                write_concern.destroy_c_write_concern()
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
             if collection is not None:

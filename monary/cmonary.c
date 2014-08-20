@@ -1352,7 +1352,8 @@ end:
 int monary_remove(mongoc_collection_t* collection,
                   monary_column_data* coldata,
                   mongoc_client_t* client,
-                  bool just_one)
+                  bool just_one,
+                  mongoc_write_concern_t* write_concern)
 {
     bson_error_t error;
     bson_iter_t bsonit;
@@ -1376,7 +1377,8 @@ int monary_remove(mongoc_collection_t* collection,
         return 0;
     }
 
-    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false,
+                                                      write_concern);
 
     bson_init(&selector);
     bson_init(&reply);
@@ -1453,7 +1455,8 @@ int monary_remove(mongoc_collection_t* collection,
 #endif
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
-                                                              false, NULL);
+                                                              false,
+                                                              write_concern);
             bson_reinit(&reply);
         }
     }
