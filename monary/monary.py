@@ -30,6 +30,8 @@ except ImportError:
 import numpy
 import bson
 
+from .write_concern import WriteConcern
+
 cmonary = None
 
 def _load_cmonary_lib():
@@ -76,7 +78,9 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPPPI:I",
+    "monary_create_write_concern:IIBBS:P",
+    "monary_destroy_write_concern:P:0",
+    "monary_insert:PPPPP:0",
     "monary_remove:PPPB:I"
 ]
 
@@ -598,19 +602,13 @@ class Monary(object):
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
 
-    def insert(self, db, coll, params, w=1):
+    def insert(self, db, coll, params, write_concern=None):
         """Performs an insertion of data from arrays.
-
-           The ``write`` concern is number of nodes that each document must be
-           written to before the server acknowledges the write. See the MongoDB
-           manual entry on Write Concern
-           (http://docs.mongodb.org/manual/reference/write-concern/) for more
-           details.
 
            :param db: name of database
            :param coll: name of the collection to insert into
            :param params: list of MonaryParams to be inserted
-           :param w: (optional) the write concern
+           :param write_concern: a WriteConcern object.
 
            :returns: A numpy array of the inserted documents ObjectIds. Masked
                      values indicate documents that failed to be inserted.
@@ -679,11 +677,17 @@ class Monary(object):
             if collection is None:
                 raise ValueError("unable to get the collection")
 
+            if write_concern is None:
+                write_concern = WriteConcern()
+
             cmonary.monary_insert(collection, coldata, id_data,
-                                  self._connection, w)
+                                  self._connection,
+                                  write_concern.get_c_write_concern())
 
             return ids
         finally:
+            if write_concern is not None:
+                write_concern.destroy_c_write_concern()
             if coldata is not None:
                 cmonary.monary_free_column_data(coldata)
             if id_data is not None:

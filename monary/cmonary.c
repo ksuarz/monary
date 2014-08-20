@@ -943,6 +943,52 @@ void monary_close_query(monary_cursor* cursor)
     }
 }
 
+/**
+ * Create a write concern pointer to be used for insert, remove, or update.
+ *
+ * @param write_concern_w The number of nodes that each document must be
+ *                        written to before the server acknowledges the write.
+ * @param write_concern_wtimeout The number of milliseconds before write
+ *                               timeout.
+ * @param write_concern_wtag The write concern tag.
+ * @param write_concern_journal Whether or not the write request should be
+ *                              journaled before acknowledging the write
+ *                              request.
+ * @param write_concern_fsync Whether or not fsync() should be called on the
+ *                            server before acknowledging the write request.
+ *
+ * @return The newly created write concern.
+ */
+mongoc_write_concern_t* monary_create_write_concern(int write_concern_w,
+                                                    int write_concern_wtimeout,
+                                                    bool write_concern_journal,
+                                                    bool write_concern_fsync,
+                                                    char* write_concern_wtag)
+{
+    mongoc_write_concern_t* write_concern = mongoc_write_concern_new();
+
+    mongoc_write_concern_set_w(write_concern, write_concern_w);
+    mongoc_write_concern_set_wtimeout(write_concern, write_concern_wtimeout);
+    mongoc_write_concern_set_journal(write_concern, write_concern_journal);
+    mongoc_write_concern_set_fsync(write_concern, write_concern_fsync);
+    if (write_concern_wtag) {
+        mongoc_write_concern_set_wtag(write_concern, write_concern_wtag);
+    }
+
+    return write_concern;
+}
+
+/**
+ * Destoys the write concern, freeing the data.
+ *
+ * @param write_concern The write concern to be destroyed.
+ */
+void monary_destroy_write_concern(mongoc_write_concern_t* write_concern)
+{
+    mongoc_write_concern_destroy(write_concern);
+}
+
+
 
 #define MONARY_SET_BSON_VALUE(TYPENAME, BTYPENAME, VKEY, STORED_TYPE, CAST_TYPE) \
 case TYPENAME:                                                                   \
@@ -1161,14 +1207,13 @@ int monary_mask_failed_writes(bson_iter_t* errors,
  * @param id_data The column data that will return the generated object ids,
  *                or Null if the '_id' field has been provided.
  * @param client The connection to the database.
- * @param write_concern_w The number of nodes that each document must be
- *                        written to before the server acknowledges the write.
+ * @param write_concern The write concern to be used for these inserts.
  */
 void monary_insert(mongoc_collection_t* collection,
                    monary_column_data* coldata,
                    monary_column_data* id_data,
                    mongoc_client_t* client,
-                   int write_concern_w)
+                   mongoc_write_concern_t* write_concern)
 {
     bson_error_t error;
     bson_iter_t bsonit;
@@ -1177,7 +1222,6 @@ void monary_insert(mongoc_collection_t* collection,
     bson_t reply;
     monary_column_item* citem;
     mongoc_bulk_operation_t* bulk_op;
-    mongoc_write_concern_t* write_concern;
     bool id_provided;
     char* str;
     int data_len;
@@ -1194,9 +1238,6 @@ void monary_insert(mongoc_collection_t* collection,
         DEBUG("%s", "Given a NULL param.");
         return;
     }
-
-    write_concern = mongoc_write_concern_new();
-    mongoc_write_concern_set_w(write_concern, write_concern_w);
 
     bulk_op = mongoc_collection_create_bulk_operation(collection, false,
                                                       write_concern);
@@ -1296,7 +1337,6 @@ end:
     bson_destroy(&document);
     bson_destroy(&reply);
     mongoc_bulk_operation_destroy(bulk_op);
-    mongoc_write_concern_destroy(write_concern);
 }
 
 /**

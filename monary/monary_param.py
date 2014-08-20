@@ -1,7 +1,7 @@
 # Monary - Copyright 2011-2014 David J. C. Beach
 # Please see the included LICENSE.TXT and NOTICE.TXT for licensing information.
 
-from monary.monary import get_monary_numpy_type
+from .monary import get_monary_numpy_type
 
 _SUPPORTED_TYPES = ["bool", "int8", "int16", "int32", "int64",
                     "uint8", "uint16", "uint32", "uint64", "float32",
