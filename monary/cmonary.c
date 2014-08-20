@@ -1560,7 +1560,8 @@ void monary_update(mongoc_collection_t* collection,
                   int* num_updates_upserts,
                   mongoc_client_t* client,
                   bool upsert,
-                  bool multi)
+                  bool multi,
+                  mongoc_write_concern_t* write_concern)
 {
     bson_error_t error;
     bson_t selector;
@@ -1593,7 +1594,8 @@ void monary_update(mongoc_collection_t* collection,
         }
         return_citem = id_data->columns;
     }
-    bulk_op = mongoc_collection_create_bulk_operation(collection, false, NULL);
+    bulk_op = mongoc_collection_create_bulk_operation(collection, false,
+                                                      write_concern);
 
     bson_init(&selector);
     bson_init(&document);
@@ -1658,7 +1660,8 @@ void monary_update(mongoc_collection_t* collection,
 #endif
             mongoc_bulk_operation_destroy(bulk_op);
             bulk_op = mongoc_collection_create_bulk_operation(collection,
-                                                              false, NULL);
+                                                              false,
+                                                              write_concern);
             bson_reinit(&reply);
         }
     }

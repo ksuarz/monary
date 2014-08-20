@@ -85,7 +85,7 @@ FUNCDEFS = [
     "monary_destroy_write_concern:P:0",
     "monary_insert:PPPPP:0",
     "monary_remove:PPPBP:I",
-    "monary_update:PPPPiPBB:0"
+    "monary_update:PPPPiPBBP:0"
 ]
 
 MAX_COLUMNS = 1024
@@ -858,7 +858,7 @@ class Monary(object):
                 cmonary.monary_destroy_collection(collection)
 
     def update(self, db, coll, sel_params, doc_params, upsert=False,
-               multi=False):
+               multi=False, write_concern=None):
         """Performs a bulk update/upsert based on data from arrays.
 
            :param db: name of database
@@ -867,6 +867,7 @@ class Monary(object):
            :param doc_params: list of MonaryParams to be used as documents
            :param upsert: (optional) if true, upserts will be performed
            :param multi: (optional) whether to do a multi update or not
+           :param write_concern: a WriteConcern object.
 
            :returns: the number of documents removed
            :rtype: int
@@ -922,8 +923,12 @@ class Monary(object):
             if collection is None:
                 raise ValueError("unable to get the collection")
 
+            if write_concern is None:
+                write_concern = WriteConcern()
+
             TwoInts = c_int * 2
             num_updates_upserts = TwoInts(0, 0)
+
             cmonary.monary_update(collection,
                                   sel_coldata,
                                   doc_coldata,
@@ -931,7 +936,9 @@ class Monary(object):
                                   num_updates_upserts,
                                   self._connection,
                                   upsert,
-                                  multi)
+                                  multi,
+                                  write_concern.get_c_write_concern())
+
             updated, upserted = num_updates_upserts
             if updated < 0:
                 raise RuntimeError(
@@ -941,6 +948,8 @@ class Monary(object):
                 return (updated, upserted, ids)
             return updated
         finally:
+            if write_concern is not None:
+                write_concern.destroy_c_write_concern()
             if sel_coldata is not None:
                 cmonary.monary_free_column_data(sel_coldata)
             if doc_coldata is not None:
