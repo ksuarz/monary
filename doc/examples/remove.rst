@@ -13,7 +13,7 @@ A single Monary remove command runs a MongoDB remove commands for each element
 in the data arrays. For example, the monary command::
 
     values = numpy.ma.masked_array([1, 2, 3], [False] * 3)
-    client.remove('db', 'collection', [values], ["fieldname"])
+    client.remove('db', 'collection', [MonaryParam(values, "fieldname")])
 
 \...is equivalent to these PyMongo operations::
 
@@ -47,7 +47,9 @@ connection to the local MongoDB database::
 Next, we generate and insert the documents::
 
     >>> import numpy as np
-    >>> scores = np.random.uniform(0, 100, 10000)  # 10,000 numbers from 0 to 100
+    >>> # 10,000 numbers from 0 to 100
+    >>> scores = np.random.uniform(0, 100, 10000)
+
     >>> mask = np.zeros(len(scores), dtype="bool")
     >>> scores = np.ma.masked_array(scores, mask)
     >>> ids = client.insert("scores", "data", [scores], ["score"])
@@ -56,14 +58,14 @@ Next, we generate and insert the documents::
 Using Monary Remove
 -------------------
 Suppose we have done our processing and now want to remove the data we inserted
-above from the database. We must first make a masked array from the ids::
+above from the database. We must first make a MonaryParam from the data::
 
-    >>> mask = np.zeros(len(ids), dtype="bool")
-    >>> ids = np.ma.masked_array(ids, mask)
+    >>> from Monary import MonaryParam
+    >>> ids = MonaryParam(ids, "_id", "id")
 
 Now we can perform the removal::
 
-    >>> num_removed = client.remove("scores", "data", [ids], ["_id"], ["id"])
+    >>> num_removed = client.remove("scores", "data", [ids])
     >>> num_removed
     10000
 
@@ -76,9 +78,7 @@ we started with this example. Then, we can do this with Monary like so::
     >>> arr += 80.0
     >>> mask = np.zeros(len(arr), dtype="bool")
     >>> arr = np.ma.masked_array(arr, mask)
-    >>> num_removed = client.remove("scores", "data",
-    ...                             [ids, arr],
-    ...                             ["_id", "score.$lt"],
-    ...                             ["id", "float64"])
+    >>> mp = MonarParam(arr, "score.$lt")
+    >>> num_removed = client.remove("scores", "data", [ids, mp])
     >>> num_removed
     7974

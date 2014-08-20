@@ -71,18 +71,23 @@ Now we process the scores and assign grades to each student::
     ...     grades[i][fours] = 4.0
     ...     grades[i][zeros] = 0.0
 
-Now weight both tests and assign overall grades:
+Now weight both tests and assign overall grades::
 
     >>> overall_grades = (grades[0] * 0.4 + grades[1] * 0.6).round(3)
+
+Then we need to create ``MonaryParam``s::
+
+    >>> from monary import MonaryParam
+    >>> id_mp = MonaryParam(ids, "student_id", "string:14")
+    >>> overall_mp = MonaryParam(overall_grades, "grades.overall")
+    >>> midterm_mp = MonaryParam(grades[0], "grades.midterm")
+    >>> final_mp = MonaryParam(grades[1], "grades.final_exam")
 
 Finally, we insert the results to the database::
 
     >>> ids = m.insert("monary_students", "graded",
-    ...                [ids, overall_grades] + grades,
-    ...                ["student_id", "grades.overall", "grades.midterm",
-    ...                 "grades.final_exam"],
-    ...                ["string:14"] + ["float64"] * 3)
-    >>> from monary.monary import mvoid_to_bson_id
+    ...                [id_mp, overall_mp, miterm_mp, final_mp])
+    >>> from monary import mvoid_to_bson_id
     >>> oids = list(map(mvoid_to_bson_id, ids))
     >>> oids[0]
     ObjectId('53dba51e61155374af671dc1')
