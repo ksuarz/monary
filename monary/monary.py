@@ -79,8 +79,6 @@ FUNCDEFS = [
     "monary_init_aggregate:PPP:P",
     "monary_load_query:P:I",
     "monary_close_query:P:0",
-    "monary_insert:PPPPI:I",
-    "monary_remove:PPPB:I",
     "monary_create_write_concern:IIBBS:P",
     "monary_destroy_write_concern:P:0",
     "monary_insert:PPPPP:0",
@@ -609,7 +607,7 @@ class Monary(object):
            :param db: name of database
            :param coll: name of the collection to insert into
            :param params: list of MonaryParams to be inserted
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: A numpy array of the inserted documents ObjectIds. Masked
                      values indicate documents that failed to be inserted.
@@ -629,8 +627,8 @@ class Monary(object):
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
-        params = sorted(params,
-                        key=lambda p: p.field if p.field != "_id" else chr(0))
+        params = sorted(
+            params, key=lambda p: p.field if p.field != "_id" else chr(0))
 
         if params[0].field == "_id" and params[0].array.mask.any():
             raise ValueError("the _id array must not have any masked values")
@@ -812,7 +810,7 @@ class Monary(object):
            :param params: list of MonaryParams to be removed
            :param just_one: (optional) specify whether to remove multiple or
                             just one document per selector
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: the number of documents removed
            :rtype: int
@@ -862,12 +860,12 @@ class Monary(object):
         """Performs a bulk update/upsert based on data from arrays.
 
            :param db: name of database
-           :param coll: name of the collection on which to perform the remove
+           :param coll: name of the collection on which to perform the update
            :param sel_params: list of MonaryParams to be used as selectors
            :param doc_params: list of MonaryParams to be used as documents
            :param upsert: (optional) if true, upserts will be performed
            :param multi: (optional) whether to do a multi update or not
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: the number of documents removed
            :rtype: int

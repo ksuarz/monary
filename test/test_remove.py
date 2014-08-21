@@ -4,7 +4,7 @@
 import random
 
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 import pymongo
 
 from monary import Monary, MonaryParam

@@ -5,13 +5,8 @@ import numpy as np
 import numpy.ma as ma
 import numpy.random as nprand
 
-import monary
+from monary import Monary, MonaryParam, WriteConcern, MONARY_W_DEFAULT
 from profile import profile
-
-try:
-    xrange
-except NameError:
-    xrange = range
 
 NUM_BATCHES = 4500
 BATCH_SIZE = 1000
@@ -19,14 +14,14 @@ BATCH_SIZE = 1000
 
 
 def do_insert():
-    m = monary.Monary()
+    m = Monary()
     num_docs = NUM_BATCHES * BATCH_SIZE
-    arrays = [ma.masked_array(nprand.uniform(0, i + 1, num_docs),
-                              np.zeros(num_docs)) for i in xrange(5)]
+    params = [MonaryParam(
+        ma.masked_array(nprand.uniform(0, i + 1, num_docs),
+                        np.zeros(num_docs)), "x%d" % i) for i in range(5)]
+    wc = WriteConcern(w=MONARY_W_DEFAULT)
     with profile("monary insert"):
-        m.insert("monary_test", "collection", arrays,
-                 ["x1", "x2", "x3", "x4", "x5"],
-                 ["float64"] * 5)
+        m.insert("monary_test", "collection", params, write_concern=wc)
 
 if __name__ == "__main__":
     do_insert()
