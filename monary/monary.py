@@ -207,26 +207,6 @@ def mvoid_to_bson_id(mvoid):
         return bson.ObjectId(str(mvoid))
 
 
-def sort_fields_types_data(fields, types, data):
-    """Sort the fields alphabetically (except for "_id" which will always come
-       first) and ensure that the corresponding types and data will be sorted
-       the same way to maintain the original correspondence.
-
-       :param field: list of bson field names
-       :param types: corresponding list of types
-       :param data: corresponding list of data
-
-       :returns: A 3-tuple of (fields, types, data) but sorted
-       :rtype: tuple
-    """
-    zipped = sorted(zip(fields, types, data),
-                    key=lambda x: x[0] if x != "_id" else chr(0))
-    f = [x[0] for x in zipped]
-    t = [x[1] for x in zipped]
-    d = [x[2] for x in zipped]
-    return (f, t, d)
-
-
 def validate_bson_fields(fields, allow_dollar=False):
     """Validate field names for bson creation.
 
@@ -608,7 +588,7 @@ class Monary(object):
            :param db: name of database
            :param coll: name of the collection to insert into
            :param params: list of MonaryParams to be inserted
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: A numpy array of the inserted documents ObjectIds. Masked
                      values indicate documents that failed to be inserted.
@@ -624,7 +604,7 @@ class Monary(object):
         if len(params) == 0:
             raise ValueError("cannot do an empty insert")
 
-        validate_bson_fields(list(map(lambda p: p.field, params)), True)
+        validate_bson_fields(list(map(lambda p: p.field, params)))
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
@@ -815,20 +795,20 @@ class Monary(object):
 
            :param db: name of database
            :param coll: name of the collection on which to perform the remove
-           :param params: list of MonaryParams to be inserted
+           :param params: list of MonaryParams to be removed
            :param just_one: (optional) specify whether to remove multiple or
                             just one document per selector
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: the number of documents removed
            :rtype: int
         """
-        validate_bson_fields(list(map(lambda p: p.field, params)))
+        validate_bson_fields(list(map(lambda p: p.field, params)), True)
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
-        params = sorted(params,
-                        key=lambda p: p.field if p.field != "_id" else chr(0))
+        params = sorted(
+            params, key=lambda p: p.field if p.field != "_id" else chr(0))
 
         if len(set(len(p) for p in params)) > 1:
             raise ValueError("all given arrays must be of the same length")

@@ -266,6 +266,7 @@ int monary_set_column_item(monary_column_data* coldata,
     if(colnum >= coldata->num_columns) { return 0; }
     if(type == TYPE_UNDEFINED || type > LAST_TYPE) { return 0; }
     if(storage == NULL) { return 0; }
+    if(mask == NULL) { return 0; }
     
     len = strlen(field);
     if(len > MONARY_MAX_STRING_LENGTH) { return 0; }
