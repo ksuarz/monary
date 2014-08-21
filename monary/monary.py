@@ -587,7 +587,7 @@ class Monary(object):
            :param db: name of database
            :param coll: name of the collection to insert into
            :param params: list of MonaryParams to be inserted
-           :param write_concern: a WriteConcern object.
+           :param write_concern: (optional) a WriteConcern object.
 
            :returns: A numpy array of the inserted documents ObjectIds. Masked
                      values indicate documents that failed to be inserted.
@@ -607,8 +607,8 @@ class Monary(object):
 
         # To ensure that _id is the first key, the string "_id" is mapped
         # to chr(0). This will put "_id" in front of any other field.
-        params = sorted(params,
-                        key=lambda p: p.field if p.field != "_id" else chr(0))
+        params = sorted(
+            params, key=lambda p: p.field if p.field != "_id" else chr(0))
 
         if params[0].field == "_id" and params[0].array.mask.any():
             raise ValueError("the _id array must not have any masked values")
