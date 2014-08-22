@@ -18,7 +18,8 @@ stored in NumPy arrays:
  * ``float32``: IEEE 754 single-precision (32-bit) floating point value 
  * ``float64``: IEEE 754 single-precision (64-bit) floating point value
  * ``date``: UTC datetime
- * ``timestamp``: `Timestamp <http://docs.mongodb.org/manual/reference/bson-types/#timestamps>`_
+ * ``timestamp``:
+   `Timestamp <http://docs.mongodb.org/manual/reference/bson-types/#timestamps>`_
  * ``string``: UTF-8 string
  * ``binary``: binary data
  * ``bson``: BSON document
@@ -26,9 +27,9 @@ stored in NumPy arrays:
  * ``size``: <see below>
  * ``length``: <see below>
 
-When values are retrieved from MongoDB they are converted from BSON types to the
-NumPy types you specify. See query, block_query, and aggregate. All types are
-implemented in C, thus type conversions follow the rules of the C standard.
+When values are retrieved from MongoDB they are converted from BSON types to
+the NumPy types you specify. See query, block_query, and aggregate. All types
+are implemented in C, thus type conversions follow the rules of the C standard.
 
 When values are inserted into MongoDB they are converted from NumPy types to
 BSON types. In most cases the BSON type can be inferred from the input NumPy
@@ -147,3 +148,77 @@ For ASCII/UTF-8 strings and Javascript code, "length" refers to the string
 length (the same as ``len`` on a string); for arrays, the number of elements;
 and for documents, the number of key-value pairs. No other types have a defined
 Monary length.
+
+
+.. _write-concern-reference:
+
+Write Concern Reference
+=======================
+The Monary WriteConcern object allows users to specify the type of write Monary
+will perform. This object will be converted into a C struct and used for
+``insert``, ``remove``, and ``update``. The parameters to the constructor mimic
+the MongoDB Write Concern options.
+
+.. seealso::
+    `The MongoDB manual entry on Write Concern
+    <http://docs.mongodb.org/manual/reference/write-concern/>`_
+
+w
+-
+The w option provides the ability to disable write concern entirely as well as specify the write concern for `replica sets
+<http://docs.mongodb.org/manual/reference/glossary/#term-replica-set>`_.
+
+The only acceptable values are:
+
+ - ``MONARY_W_ERRORS_IGNORED``: Disables basic acknowledgment of write
+   operations, but returns information about socket exceptions and networking
+   errors.
+ - ``MONARY_W_DEFAULT``: Provides acknowledgment of write operations on a
+   standalone mongod or the primary in a replica set. This value can be though
+   of as identical to ``w=1``.
+ - ``MONARY_W_MAJORITY``: Confirms that write operations have propagated to the
+   majority of configured replica set members. This allows you to avoid hard
+   coding assumptions about the size of your replica set into your application.
+ - ``MONARY_W_TAG`` : This value must be used if and only if you are specifying
+   a write concern tag set.
+ - ``[0 or more]`` : Guarantees that write operations have propagated
+   successfully to the specified number of replica set members including the
+   primary.
+
+wtimeout
+--------
+This option specifies a time limit, in milliseconds, for the write concern.
+``wtimeout`` is only applicable for ``w`` values greater than 1.
+
+``wtimeout`` causes write operations to return with an error after the
+specified limit, even if the required write concern is not fulfilled. When
+these write operations return, MongoDB does not undo successful data
+modifications performed before the write concern exceeded the wtimeout time
+limit.
+
+If you do not specify the ``wtimeout`` option and the level of write concern is
+unachievable, the write operation will block indefinitely. Specifying a
+``wtimeout`` value of 0 is equivalent to a write concern without the
+``wtimeout`` option.
+
+wjournal
+--------
+The ``wjournal`` option confirms that the mongod instance has written the data
+to the on-disk journal. This ensures that data is not lost if the mongod
+instance shuts down unexpectedly. Set to ``True`` to enable.
+
+wfsync
+------
+The ``wfsync`` option confirms that the mongod instance has called ``fsync()``
+before acknowledging the write request. Set to ``True`` to enable.
+
+wtag
+----
+By specifying a ``wtag``, you can have fine-grained control over which replica
+set members must acknowledge a write operation to satisfy the required level of
+write concern.
+
+.. seealso::
+
+    `The MongoDB tag set configuration tutorial
+    <http://docs.mongodb.org/manual/tutorial/configure-replica-set-tag-sets/#replica-set-configuration-tag-sets>`_
