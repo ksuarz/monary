@@ -20,5 +20,6 @@ started by issuing the following in a shell::
     aggregation
     string
     remove
+    update
     timestamp
     binary
