@@ -75,7 +75,7 @@ Now weight both tests and assign overall grades::
 
     >>> overall_grades = (grades[0] * 0.4 + grades[1] * 0.6).round(3)
 
-Then we need to create ``MonaryParam``s::
+Then we need to create ``MonaryParam``\ s::
 
     >>> from monary import MonaryParam
     >>> id_mp = MonaryParam(ids, "student_id", "string:14")

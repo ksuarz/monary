@@ -1,3 +1,5 @@
+.. _type-reference:
+
 Type Reference
 ==============
 Monary converts values between BSON and NumPy. The following data types can be
@@ -30,7 +32,8 @@ implemented in C, thus type conversions follow the rules of the C standard.
 
 When values are inserted into MongoDB they are converted from NumPy types to
 BSON types. In most cases the BSON type can be inferred from the input NumPy
-type, except for types ``id``, ``timestamp``, ``string``, ``binary``, ``bson``.
+type, except for types ``id``, ``date``, ``timestamp``, ``string``, ``binary``,
+and ``bson``.
 
 
 

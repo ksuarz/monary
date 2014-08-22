@@ -51,7 +51,7 @@ Now we normalize our scores::
     >>> std, mean = scores.std(), scores.mean()
     >>> scores = (scores - mean) / std
 
-Next we must create the ``MonaryParam``s before we perform the update::
+Next we must create the ``MonaryParam``\ s before we perform the update::
 
     >>> ids = MonaryParam(ids, "_id", "id")
     >>> scores = MonaryParam(scores, "$set.score")
