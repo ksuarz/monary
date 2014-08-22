@@ -32,11 +32,18 @@ assets::
 
 Finally, we use Monary to insert the data into MongoDB::
 
-    >>> client.insert("finance", "assets",
-    ...               [sold, buy_price, sell_price],
-    ...               ["sold", "price.bought", "price.sold"],
-    ...               ["bool", "float64", "float64"])
+    >>> from monary import MonaryParam
+    >>> sold, buy_price, sell_price = MonaryParam.from_lists(
+    ...     [sold, buy_price, sell_price],
+    ...     ["sold", "price.bought", "price.sold"])
 
+    >>> client.insert(
+    ...     "finance", "assets", [sold, buy_price, sell_price])
+
+.. seealso::
+
+    :doc:`The MonaryParam Example </examples/monary-param>` and
+    :doc:`The Monary Insert Example </examples/insert>`
 
 Using Query
 -----------

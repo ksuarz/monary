@@ -16,10 +16,11 @@ started by issuing the following in a shell::
     connection
     query
     block-query
-    insert
     aggregation
-    string
+    monary-param
+    insert
     remove
     update
     timestamp
+    string
     binary

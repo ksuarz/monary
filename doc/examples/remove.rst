@@ -41,7 +41,7 @@ For this example, we will use Monary's insert to put ten thousand random values
 representing scores out of 100 into our database. First, we set up a Monary
 connection to the local MongoDB database::
 
-    >>> from monary import Monary
+    >>> from monary import Monary, MonaryParam
     >>> client = Monary()
 
 Next, we generate and insert the documents::
@@ -52,7 +52,7 @@ Next, we generate and insert the documents::
 
     >>> mask = np.zeros(len(scores), dtype="bool")
     >>> scores = np.ma.masked_array(scores, mask)
-    >>> ids = client.insert("scores", "data", [scores], ["score"])
+    >>> ids = client.insert("scores", "data", [MonaryParam(scores, "score")])
 
 
 Using Monary Remove
@@ -60,7 +60,6 @@ Using Monary Remove
 Suppose we have done our processing and now want to remove the data we inserted
 above from the database. We must first make a MonaryParam from the data::
 
-    >>> from Monary import MonaryParam
     >>> ids = MonaryParam(ids, "_id", "id")
 
 Now we can perform the removal::

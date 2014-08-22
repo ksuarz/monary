@@ -35,10 +35,16 @@ Next we convert the image list into a numpy masked array:
 
 Finally, we use Monary's ``binary`` type to insert the data into MongoDB::
 
-    >>> client.insert("test", "data",
-    ...               [img_array, sizes],
-    ...               ["img", "size"],
-    ...               ["binary:%d" % max_size, "uint32"])
+    >>> from monary import MonaryParam
+    >>> img_mp = MonaryParam(img_array, "img", "binary:%d" % max_size)
+    >>> size_mp = MonaryParam(sizes, size)
+    >>> client.insert("test", "data", [img_mp, size_mp])
+
+.. seealso::
+
+    :doc:`The MonaryParam Example </examples/monary-param>` and
+    :doc:`The Monary Insert Example </examples/insert>`
+
 
 .. note::
 

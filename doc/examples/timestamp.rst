@@ -32,7 +32,15 @@ Next we put these values into a numpy masked array::
 
 Finally we use monary to insert this data into MongoDB::
 
-    >>> client.insert("test", "data", [ts_array], ["ts"], ["timestamp"])
+    >>> from monary import MonaryParam
+    >>> client.insert(
+    ...     "test", "data", [MonaryParam(ts_array, "ts", "timestamp")])
+
+.. seealso::
+
+    :doc:`The MonaryParam Example </examples/monary-param>` and
+    :doc:`The Monary Insert Example </examples/insert>`
+
 
 Finding Timestamp Data
 ----------------------

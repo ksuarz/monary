@@ -35,7 +35,15 @@ Then, we can create a NumPy masked array of random strings::
 
 Finally we can use Monary to insert these strings::
 
-    >>> client.insert("test", "data", [strs], ["stringdata"], ["string:10"])
+    >>> from monary import MonaryParam
+    >>> client.insert(
+    ...     "test", "data", [MonaryParam(strs, "stringdata", "string:10")])
+
+.. seealso::
+
+    :doc:`The MonaryParam Example </examples/monary-param>` and
+    :doc:`The Monary Insert Example </examples/insert>`
+
 
 MongoDB encodes strings in UTF-8, so you can use non-ASCII characters. Here is
 a sample script that inserts non-ASCII strings:
@@ -44,7 +52,7 @@ a sample script that inserts non-ASCII strings:
 
     # -*- coding: utf-8 -*-
     # the above comment is needed for Python 2 files with non-ASCII characters
-    from monary import Monary
+    from monary import Monary, MonaryParam
     import numpy as np
     from numpy import ma
 
@@ -53,8 +61,8 @@ a sample script that inserts non-ASCII strings:
     strs = list(map(lambda x: x.encode("utf-8"), strs))
     max_len = max(map(len, strs))
     str_array = ma.masked_array(strs, [False] * 3, dtype=("S%d" % max_len))
-    client.insert("test", "utf8", [str_array],
-                  ["stringdata"], ["string:%d" % max_len])
+    str_mp = MonaryParam(str_array, "stringdata", "string:%d" % max_len)
+    client.insert("test", "utf8", [str_mp])
 
 
 Finding String Data
