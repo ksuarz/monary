@@ -58,5 +58,5 @@ mongodb-mongo-c-driver-*/src/libbson/json-to-bson
 mongodb-mongo-c-driver-*/src/libbson/test-libbson
 
 doc/_build
-build
-dist
+/build
+/dist

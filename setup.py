@@ -40,7 +40,7 @@ else:
 compiler = new_compiler(**compiler_kw)
 
 MONARY_DIR = "monary"
-CMONGO_SRC = "mongodb-mongo-c-driver-0.98.0"
+CMONGO_SRC = "mongodb-mongo-c-driver-1.0.0"
 CFLAGS = ["-fPIC", "-O2"]
 
 if not DEBUG:
@@ -62,10 +62,13 @@ class BuildCMongoDriver(Command):
     def run(self):
         try:
             os.chdir(CMONGO_SRC)
+            env = os.environ.copy()
+            env.setdefault('CFLAGS', '')
+            env['CFLAGS'] += ' -fPIC'
             status = subprocess.call(["./configure", "--enable-static",
                                       "--without-documentation",
                                       "--disable-maintainer-mode",
-                                      "--disable-tests", "--disable-examples"])
+                                      "--disable-tests", "--disable-examples"], env=env)
             if status != 0:
                 raise BuildException("configure script failed with exit status %d" % status)
 
